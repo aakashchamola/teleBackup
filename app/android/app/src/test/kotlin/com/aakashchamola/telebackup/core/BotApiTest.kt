@@ -167,6 +167,18 @@ class BotApiTest {
         assertThat(r.value).containsExactly(ChatSummary(-1001, "My photos backup", "supergroup"))
     }
 
+    @Test fun getUpdatesDropsTheOldBasicGroupAfterTopicsWereTurnedOn() = runBlocking<Unit> {
+        // what a real phone sent: the basic group, then the supergroup it became (same title, new id)
+        server.enqueue(ok("""[{"update_id":1,"message":{"chat":{"id":-5589,"title":"teleBackup TEST","type":"group"}}},
+            {"update_id":2,"message":{"chat":{"id":-1003949,"title":"teleBackup TEST","type":"supergroup"}}},
+            {"update_id":3,"my_chat_member":{"chat":{"id":-1003949,"title":"teleBackup TEST","type":"supergroup"}}}]"""))
+        assertThat((api.getUpdates() as ApiResult.Ok).value).containsExactly(ChatSummary(-1003949, "teleBackup TEST", "supergroup"))
+        // and when Telegram says so outright, even if the titles differ
+        server.enqueue(ok("""[{"update_id":1,"message":{"chat":{"id":-77,"title":"Old name","type":"group"},"migrate_to_chat_id":-1008}},
+            {"update_id":2,"message":{"chat":{"id":-1008,"title":"New name","type":"supergroup"}}}]"""))
+        assertThat((api.getUpdates() as ApiResult.Ok).value).containsExactly(ChatSummary(-1008, "New name", "supergroup"))
+    }
+
     @Test fun createForumTopicParses() = runBlocking<Unit> {
         server.enqueue(ok("""{"message_thread_id":77,"name":"Screenshots","icon_color":7322096}"""))
         val r = api.createForumTopic(-1001, "Screenshots") as ApiResult.Ok

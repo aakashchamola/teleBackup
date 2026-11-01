@@ -72,16 +72,22 @@ class BotApi(
         call("getUpdates", FormBody.Builder().add("timeout", "0").add("limit", "100").build()) { el ->
             val arr = el.jsonArray
             val seen = LinkedHashMap<Long, ChatSummary>()
+            val migratedAway = HashSet<Long>()
             for (u in arr) {
                 val o = u.jsonObject
-                val chat = listOf("message", "my_chat_member", "edited_message", "channel_post")
-                    .firstNotNullOfOrNull { o[it]?.jsonObject?.get("chat")?.jsonObject } ?: continue
+                val body = listOf("message", "my_chat_member", "edited_message", "channel_post")
+                    .firstNotNullOfOrNull { o[it]?.jsonObject } ?: continue
+                val chat = body["chat"]?.jsonObject ?: continue
                 val type = chat.str("type") ?: continue
                 if (type != "supergroup" && type != "group") continue
                 val id = chat.long("id") ?: continue
+                // Turning Topics on converts a basic group into a supergroup with a NEW id; the old one must not be offered too.
+                if (body.long("migrate_to_chat_id") != null) migratedAway += id
+                seen.remove(id)   // keep the newest sighting last
                 seen[id] = ChatSummary(id, chat.str("title") ?: "Group", type)
             }
-            seen.values.toList()
+            val supergroupTitles = seen.values.filter { it.type == "supergroup" }.map { it.title }.toSet()
+            seen.values.filter { it.id !in migratedAway && !(it.type == "group" && it.title in supergroupTitles) }
         }
 
     suspend fun getChat(chatId: Long): ApiResult<ChatInfo> =
