@@ -26,7 +26,7 @@ Everything that can be built and proven on a computer is built and tested. What 
 | Device checks F1-F15, background survival for hours, Android 15 time limit, maker settings | Phone | M3/M6 |
 | Family test of setup, TalkBack pass, screenshots | A person and the phone | M5 |
 | 5,000-file backlog, rate-limit tuning, `perms/MakerGuide` wording per maker | Phone, time | M6 |
-| Signing key, release 1.0.0, family roll-out | The owner makes and backs up the key (`docs/phases/M7.md` task 1) | M7 |
+| Release 1.0.0 and the family roll-out | The key now exists (`docs/RELEASES.md`); the owner must back it up. Still needed: TDLib built from source, the device checks above, the family test | M7 |
 
 ## Safety state
 Every new rule starts upload-only and in dry-run. Delete needs the warning dialog, then a first review the person approves. `stopAllDeletes` exists. No code path deletes without the gate, and the gate refuses when the strong check is not available. **No real folder has ever been touched by this code**: nothing has run on a phone.
