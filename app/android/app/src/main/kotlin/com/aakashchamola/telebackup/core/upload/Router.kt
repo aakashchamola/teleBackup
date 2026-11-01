@@ -6,7 +6,7 @@ import com.aakashchamola.telebackup.core.model.SendAs
 import com.aakashchamola.telebackup.core.model.UploadAs
 
 sealed class RouteDecision {
-    data class Go(val route: Route, val sendAs: SendAs, val note: String? = null) : RouteDecision()
+    data class Go(val route: Route, val sendAs: SendAs, val note: String? = null, val parts: Int = 1) : RouteDecision()
     data class Skip(val reason: String) : RouteDecision()
 }
 
@@ -30,6 +30,11 @@ object Router {
         limits: RouterLimits = RouterLimits(),
     ): RouteDecision {
         if (sizeBytes >= limits.accountMaxBytes) {
+            // a video over 2 GB is cut into parts at keyframes and sent together; anything else that big cannot go
+            val parts = SplitPlan.partsNeeded(sizeBytes)
+            if (kind == FileKind.VIDEO && SplitPlan.canSplit(displayName) && parts <= SplitPlan.MAX_PARTS) {
+                return RouteDecision.Go(Route.ACCOUNT, if (uploadAs == UploadAs.ORIGINAL) SendAs.DOCUMENT else SendAs.VIDEO, "cut into $parts parts", parts)
+            }
             return RouteDecision.Skip("Too big for Telegram (over 2 GB)")
         }
         val route = if (sizeBytes < limits.botMaxBytes) Route.BOT else Route.ACCOUNT

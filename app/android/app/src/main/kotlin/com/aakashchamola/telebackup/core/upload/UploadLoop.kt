@@ -1,5 +1,6 @@
 package com.aakashchamola.telebackup.core.upload
 
+import com.aakashchamola.telebackup.core.clean.ScratchFiles
 import com.aakashchamola.telebackup.core.db.FileEntity
 import com.aakashchamola.telebackup.core.db.FileStore
 import com.aakashchamola.telebackup.core.db.RuleEntity
@@ -58,6 +59,8 @@ class UploadLoop(
     private val account: TelegramSender?,
     private val progress: ProgressSink = object : ProgressSink {},
     private val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    private val splitter: VideoSplitter? = null,
+    private val scratchDir: java.io.File? = null,
 ) {
     companion object { const val SHORT_FLOOD_SECONDS = 120L; const val ALBUM_MAX = 10; const val ALBUM_MAX_BYTES = 40_000_000L }
 
@@ -188,6 +191,7 @@ class UploadLoop(
         val route = file0.route ?: Route.BOT
         pacer.awaitSlot(route)
         val prep = prepare(file0, rule, doneSoFar, total, announce = true) ?: return SendStep.Retry
+        if (prep.file.partCount > 1) return sendInParts(prep, rule, isStopped)
         return sendPrepared(prep, rule, route, isStopped)
     }
 
@@ -217,6 +221,73 @@ class UploadLoop(
                 SendStep.Done
             }
             is SendResult.Failed -> handleFailure(file, rule, result.error, isStopped)
+        }
+    }
+
+    // ----- a video over 2 GB: cut at keyframes, the parts go up together as one album -----
+
+    private suspend fun sendInParts(prep: Prep, rule: RuleEntity, isStopped: () -> Boolean): SendStep {
+        val file = prep.file
+        suspend fun fail(reason: String): SendStep = handleFailure(file, rule, TgError.BadRequest(reason), isStopped)
+        val cutter = splitter; val dir = scratchDir; val sender = account
+        if (sender == null) {
+            files.apply(file.id, FileEvent.NetworkStop, clock.now())
+            accountStopped = true
+            return SendStep.Retry
+        }
+        if (cutter == null || dir == null) return fail("cutting a big video into parts is not available")
+        val outDir = java.io.File(dir, "split-${file.id}")
+        try {
+            val cut = try {
+                cutter.split(java.io.File(file.path), SplitPlan.PART_MAX_BYTES, outDir) { done, tot -> progress.fileProgress("${file.displayName} (cutting)", done, tot) }
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) { files.apply(file.id, FileEvent.NetworkStop, clock.now()) }
+                throw e
+            }
+            val parts = when (cut) {
+                is SplitResult.Failed -> return fail("it could not be cut into parts: ${cut.reason}")
+                is SplitResult.Parts -> cut.files
+            }
+            val n = parts.size
+            val jobs = parts.mapIndexed { i, f ->
+                val name = SplitPlan.partName(file.displayName, i, n)
+                SendJob(
+                    chatId = prep.job.chatId, threadId = prep.job.threadId, path = f.absolutePath, displayName = name,
+                    mimeType = "video/mp4", sendAs = file.sendAs ?: SendAs.VIDEO,
+                    caption = CaptionBuilder.build(name, file.takenAt, rule.name, prep.hash), sizeBytes = f.length(),
+                    width = file.width, height = file.height, durationMs = null,
+                )
+            }
+            progress.fileStarted("${file.displayName} ($n parts)", file.sizeBytes, 0, 0)
+            pacer.awaitSlot(Route.ACCOUNT)
+            val result = try {
+                sender.sendAlbum(jobs) { sent, tot -> progress.fileProgress("${file.displayName} ($n parts)", sent, tot) }
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) { files.apply(file.id, FileEvent.NetworkStop, clock.now()) }
+                throw e
+            }
+            return when (result) {
+                is AlbumResult.Sent -> {
+                    if (result.messages.size != n) return fail("the album answer did not match its parts")
+                    val bad = jobs.zip(result.messages).map { (j, m) -> Verifier.checkReply(j, m) }.filterIsInstance<ReplyCheck.Mismatch>().firstOrNull()
+                    val now = clock.now()
+                    val uploaded = files.apply(file.id, FileEvent.Sent(result.messages[0], prep.hash), now)
+                    files.updateDetails(uploaded.copy(partCount = n))
+                    events.add(EventKind.UPLOADED, "${file.displayName} uploaded in $n parts", rule.id, file.id, file.sizeBytes)
+                    if (bad == null) {
+                        files.apply(file.id, FileEvent.ReplyOk(null), clock.now())   // never deleted by the app: no delete date
+                        events.add(EventKind.VERIFIED, "${file.displayName} checked in Telegram ($n parts)", rule.id, file.id)
+                    } else {
+                        files.apply(file.id, FileEvent.ReplyMismatch(bad.reason), clock.now(), settings.maxAttempts, Math.random())
+                        events.add(EventKind.VERIFY_FAILED, "${file.displayName}: Telegram reply did not match (${bad.reason})", rule.id, file.id)
+                    }
+                    SendStep.Done
+                }
+                is AlbumResult.Failed -> handleFailure(file, rule, result.error, isStopped)
+                AlbumResult.Unsupported -> fail("sending parts together is not available")
+            }
+        } finally {
+            ScratchFiles.clear(outDir)
         }
     }
 

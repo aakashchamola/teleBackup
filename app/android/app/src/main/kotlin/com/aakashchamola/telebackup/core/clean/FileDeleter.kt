@@ -21,6 +21,19 @@ interface FileDeleter {
     fun removeFromPhone(file: FileEntity): DeleteOutcome
 }
 
+/**
+ * Cleans up the app's OWN scratch files: the parts of a video cut for Telegram, kept in cache/split. It refuses any path
+ * outside that folder, so it can never reach the person's photos and videos (those only go through [FileDeleter]).
+ */
+object ScratchFiles {
+    private fun ok(f: File): Boolean {
+        val p = f.absolutePath.replace("\\", "/")
+        return p.contains("/cache/split")
+    }
+    fun remove(f: File) { if (ok(f)) f.delete() }
+    fun clear(dir: File) { if (ok(dir)) dir.deleteRecursively() }
+}
+
 class AndroidFileDeleter(private val context: Context) : FileDeleter {
     override fun removeFromPhone(file: FileEntity): DeleteOutcome {
         val f = File(file.path)

@@ -101,6 +101,7 @@ class ServiceLocator private constructor(val context: Context) {
     fun uploadLoop(progress: ProgressSink): UploadLoop = UploadLoop(
         fileStore, ruleStore, topicStore, events, settings, clock, pacer(), FileHasher(), FileDisk(),
         botSender(), accountSender, progress,
+        splitter = com.aakashchamola.telebackup.core.upload.AndroidVideoSplitter(), scratchDir = java.io.File(context.cacheDir, "split"),
     )
 
     fun cleaner(): Cleaner = Cleaner(

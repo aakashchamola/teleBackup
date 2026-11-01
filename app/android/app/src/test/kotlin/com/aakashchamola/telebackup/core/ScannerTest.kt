@@ -116,9 +116,19 @@ class ScannerTest {
         assertThat(w.all()).hasSize(1300)
     }
 
-    @Test fun overTwoGigabytesIsSkippedWithAReason() {
+    @Test fun aVideoOverTwoGigabytesIsQueuedToBeSentInParts() {
         val r = w.rule()
         w.media.add(w.video(1, size = 2_500_000_000L))
+        w.scanner.scan(r)
+        val f = w.all().single()
+        assertThat(f.state).isEqualTo(FileState.QUEUED)
+        assertThat(f.route).isEqualTo(Route.ACCOUNT)
+        assertThat(f.partCount).isEqualTo(2)
+    }
+
+    @Test fun otherOverTwoGigabyteFilesAreSkippedWithAReason() {
+        val r = w.rule()
+        w.media.add(w.photo(1, size = 2_500_000_000L))
         w.scanner.scan(r)
         val f = w.all().single()
         assertThat(f.state).isEqualTo(FileState.SKIPPED)

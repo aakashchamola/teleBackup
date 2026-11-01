@@ -47,6 +47,8 @@ object DeleteGate {
         if (file.state != FileState.VERIFIED || file.tgMessageId == null || file.tgChatId == null) {
             return deny(DenyReason.NOT_VERIFIED)
         }
+        // a video cut into parts is never deleted by the app: the check below sees one message, the file went in several
+        if (file.partCount > 1) return deny(DenyReason.SENT_IN_PARTS)
         // 2. the rule deletes, and the person accepted the warning
         if (rule.mode != RuleMode.UPLOAD_AND_DELETE) return deny(DenyReason.RULE_UPLOAD_ONLY)
         if (rule.deleteWarningAcceptedAt == null) return deny(DenyReason.NO_WARNING_ACCEPTED)

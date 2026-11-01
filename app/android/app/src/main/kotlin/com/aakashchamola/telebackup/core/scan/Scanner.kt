@@ -173,6 +173,7 @@ class Scanner(
             route = go?.route, sendAs = go?.sendAs, lastError = (d as? RouteDecision.Skip)?.reason,
             queuedAt = now, createdAt = now, updatedAt = now,
             topicId = if (go != null && documentTopicFor(rule, i)) settings.documentsTopicId else null,
+            partCount = go?.parts ?: 1,
         )
     }
 

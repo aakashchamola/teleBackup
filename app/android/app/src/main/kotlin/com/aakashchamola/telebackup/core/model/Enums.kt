@@ -28,5 +28,7 @@ enum class EventKind {
 /** Why the delete gate said no. One test per value. */
 enum class DenyReason {
     NOT_VERIFIED, RULE_UPLOAD_ONLY, NO_WARNING_ACCEPTED, RULE_OFF, DELETES_BLOCKED, NOT_DUE,
-    NEEDS_REVIEW, FILE_MISSING, FILE_CHANGED, TELEGRAM_MISMATCH, NO_STRONG_CHECK
+    NEEDS_REVIEW, FILE_MISSING, FILE_CHANGED, TELEGRAM_MISMATCH, NO_STRONG_CHECK,
+    /** The video went up in parts; the strong check cannot vouch for all of them, so the app never deletes it. */
+    SENT_IN_PARTS
 }

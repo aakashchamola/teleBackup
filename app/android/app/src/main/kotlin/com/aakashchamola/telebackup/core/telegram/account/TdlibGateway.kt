@@ -3,6 +3,7 @@ package com.aakashchamola.telebackup.core.telegram.account
 import android.os.Build
 import com.aakashchamola.telebackup.core.log.Tlog
 import com.aakashchamola.telebackup.core.model.SendAs
+import com.aakashchamola.telebackup.core.telegram.AlbumResult
 import com.aakashchamola.telebackup.core.telegram.SendJob
 import com.aakashchamola.telebackup.core.telegram.SendResult
 import com.aakashchamola.telebackup.core.telegram.SentMessage
@@ -170,16 +171,7 @@ class TdlibGateway(private val appVersion: String) : TdGateway {
     override suspend fun send(job: SendJob, progress: (sent: Long, total: Long) -> Unit): SendResult {
         if (client == null) return SendResult.Failed(TgError.AccountLoggedOut)
         if (!knowChat(job.chatId)) return SendResult.Failed(TgError.Forbidden("the account cannot see the group; add the account to it"))
-        val file = TdApi.InputFileLocal(job.path)
-        val caption = TdApi.FormattedText(job.caption, emptyArray())
-        val content: TdApi.InputMessageContent = when (job.sendAs) {
-            SendAs.DOCUMENT -> TdApi.InputMessageDocument(TdApi.InputDocument(file, null, true), caption)
-            SendAs.VIDEO -> TdApi.InputMessageVideo(
-                TdApi.InputVideo(file, null, null, 0, IntArray(0), ((job.durationMs ?: 0) / 1000).toInt(), job.width ?: 0, job.height ?: 0, true),
-                caption, false, null, false,
-            )
-            SendAs.PHOTO -> return SendResult.Failed(TgError.BadRequest("photos go through the bot"))
-        }
+        val content = contentFor(job) ?: return SendResult.Failed(TgError.BadRequest("photos go through the bot"))
         val topic = job.threadId?.let { TdApi.MessageTopicForum(it.toInt()) }
         val options = TdApi.MessageSendOptions().apply { disableNotification = true; fromBackground = true }
         val first = call(TdApi.SendMessage(job.chatId, topic, null, options, null, content))
@@ -202,6 +194,55 @@ class TdlibGateway(private val appVersion: String) : TdGateway {
             fileId?.let { uploadsByFile.remove(it) }
             if (!waiter.isCompleted) {   // cancelled while sending: stop the upload and drop the half-sent message
                 withContext(NonCancellable) { client?.send(TdApi.DeleteMessages(job.chatId, longArrayOf(pending.id), true)) { } }
+            }
+        }
+    }
+
+    private fun contentFor(job: SendJob): TdApi.InputMessageContent? {
+        val file = TdApi.InputFileLocal(job.path)
+        val caption = TdApi.FormattedText(job.caption, emptyArray())
+        return when (job.sendAs) {
+            SendAs.DOCUMENT -> TdApi.InputMessageDocument(TdApi.InputDocument(file, null, true), caption)
+            SendAs.VIDEO -> TdApi.InputMessageVideo(
+                TdApi.InputVideo(file, null, null, 0, IntArray(0), ((job.durationMs ?: 0) / 1000).toInt(), job.width ?: 0, job.height ?: 0, true),
+                caption, false, null, false,
+            )
+            SendAs.PHOTO -> null
+        }
+    }
+
+    override suspend fun sendAlbum(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): AlbumResult {
+        if (client == null) return AlbumResult.Failed(TgError.AccountLoggedOut)
+        val first = jobs.first()
+        if (!knowChat(first.chatId)) return AlbumResult.Failed(TgError.Forbidden("the account cannot see the group; add the account to it"))
+        val contents = jobs.map { contentFor(it) ?: return AlbumResult.Failed(TgError.BadRequest("photos go through the bot")) }
+        val topic = first.threadId?.let { TdApi.MessageTopicForum(it.toInt()) }
+        val options = TdApi.MessageSendOptions().apply { disableNotification = true; fromBackground = true }
+        val answer = call(TdApi.SendMessageAlbum(first.chatId, topic, null, options, contents.toTypedArray()))
+        if (answer is TdApi.Error) return AlbumResult.Failed(TdErrors.forSend(answer.code, answer.message))
+        val pending = (answer as? TdApi.Messages)?.messages?.filterNotNull() ?: return AlbumResult.Failed(TgError.Network)
+        if (pending.size != jobs.size) return AlbumResult.Failed(TgError.BadRequest("Telegram made ${pending.size} messages for ${jobs.size} files"))
+
+        val total = jobs.sumOf { it.sizeBytes }
+        val waiters = pending.map { m -> CompletableDeferred<TdApi.Message>().also { sendWaiters[m.id] = it } }
+        val fileIds = ArrayList<Int>()
+        var before = 0L
+        pending.forEachIndexed { i, m ->
+            val offset = before; before += jobs[i].sizeBytes
+            fileOf(m.content)?.id?.let { id -> fileIds += id; uploadsByFile[id] = Upload(jobs[i].sizeBytes) { sent, _ -> progress(offset + sent, total) } }
+            sendFailures.remove(m.id)?.let { return AlbumResult.Failed(TdErrors.forSend(it.code, it.message)) }
+        }
+        try {
+            val done = waiters.map { it.await() }
+            val sent = done.map { toSent(it) ?: return AlbumResult.Failed(TgError.BadRequest("Telegram answered with something that is not the file")) }
+            return AlbumResult.Sent(sent)
+        } catch (e: SendFailed) {
+            return AlbumResult.Failed(TdErrors.forSend(e.error.code, e.error.message))
+        } finally {
+            pending.forEach { sendWaiters.remove(it.id) }
+            fileIds.forEach { uploadsByFile.remove(it) }
+            if (waiters.any { !it.isCompleted }) {   // cancelled or failed half-way: stop the uploads and drop what was not sent
+                withContext(NonCancellable) { client?.send(TdApi.DeleteMessages(first.chatId, pending.map { it.id }.toLongArray(), true)) { } }
             }
         }
     }

@@ -64,7 +64,7 @@ interface FileDao {
     @Query("SELECT * FROM files WHERE state = 'UPLOADING'") fun interrupted(): List<FileEntity>
     @Query("SELECT * FROM files WHERE ruleId = :ruleId AND state IN (:states)") fun byRuleAndStates(ruleId: Long, states: List<FileState>): List<FileEntity>
 
-    @Query("SELECT * FROM files WHERE ruleId = :ruleId AND state = 'VERIFIED' AND deleteAfter IS NOT NULL AND deleteAfter <= :now ORDER BY takenAt ASC LIMIT :limit")
+    @Query("SELECT * FROM files WHERE ruleId = :ruleId AND state = 'VERIFIED' AND partCount = 1 AND deleteAfter IS NOT NULL AND deleteAfter <= :now ORDER BY takenAt ASC LIMIT :limit")
     fun verifiedDue(ruleId: Long, now: Long, limit: Int): List<FileEntity>
 
     @Query("SELECT * FROM files WHERE reviewId = :reviewId") fun inReview(reviewId: Long): List<FileEntity>

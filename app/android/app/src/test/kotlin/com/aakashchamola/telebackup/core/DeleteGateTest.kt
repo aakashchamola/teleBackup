@@ -89,6 +89,7 @@ class DeleteGateTest {
             check(blocked = "x"), check(f = file.copy(deleteAfter = now + 1)),
             check(r = rule.copy(dryRun = true), review = false), check(d = disk.copy(exists = false)),
             check(d = disk.copy(sizeBytes = 1)), check(acct = AccountCheck.MISMATCH), check(acct = AccountCheck.UNAVAILABLE),
+            check(f = file.copy(partCount = 3)),
         )
         cases.forEach { denied(it)?.let(seen::add) }
         assertThat(seen).containsExactlyElementsIn(DenyReason.values().toList())

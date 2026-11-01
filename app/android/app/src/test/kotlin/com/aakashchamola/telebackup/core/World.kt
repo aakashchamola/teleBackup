@@ -47,8 +47,8 @@ class World(botSender: TelegramSender? = null, accountSender: TelegramSender? = 
 
     init { settings.chatId = -1001L }
 
-    fun loop(progress: ProgressSink = object : ProgressSink {}) =
-        UploadLoop(files, rules, topics, events, settings, clock, pacer, hasher, disk, bot, account, progress, ZoneId.of("UTC"))
+    fun loop(progress: ProgressSink = object : ProgressSink {}, splitter: com.aakashchamola.telebackup.core.upload.VideoSplitter? = null, scratch: java.io.File? = null) =
+        UploadLoop(files, rules, topics, events, settings, clock, pacer, hasher, disk, bot, account, progress, ZoneId.of("UTC"), splitter, scratch)
 
     fun cleaner(allowAccountVerifier: Boolean = true) = Cleaner(
         rules, files, reviews, events, settings, clock, disk, deleter, if (allowAccountVerifier) verifier else null, null,

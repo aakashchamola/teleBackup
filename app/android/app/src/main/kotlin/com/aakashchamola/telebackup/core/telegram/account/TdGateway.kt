@@ -1,5 +1,6 @@
 package com.aakashchamola.telebackup.core.telegram.account
 
+import com.aakashchamola.telebackup.core.telegram.AlbumResult
 import com.aakashchamola.telebackup.core.telegram.SendJob
 import com.aakashchamola.telebackup.core.telegram.SendResult
 import com.aakashchamola.telebackup.core.telegram.SentMessage
@@ -53,6 +54,9 @@ interface TdGateway {
     suspend fun resendCode(): TdStep
     /** Sends one file as the logged-in account. Errors come back as [SendResult.Failed] with a TgError. */
     suspend fun send(job: SendJob, progress: (sent: Long, total: Long) -> Unit): SendResult
+    /** 2 to 10 files shown together, as the account (a video cut into parts). Default: not supported. */
+    suspend fun sendAlbum(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): AlbumResult = AlbumResult.Unsupported
+
     /** Asks Telegram for a message again (the group must be known to the account). */
     suspend fun fetch(chatId: Long, botApiMessageId: Long): TdFetch
     /** Ends the session on the Telegram side and wipes the local database. */

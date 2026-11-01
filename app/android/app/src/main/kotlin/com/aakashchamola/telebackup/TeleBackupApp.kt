@@ -14,6 +14,8 @@ class TeleBackupApp : Application() {
                 sl.notifier.createChannels()
                 // a new process has no run going: remove a "Backing up" notification an earlier process left behind
                 sl.notifier.cancelProgress()
+                // parts of a cut video left behind by a run that was killed
+                com.aakashchamola.telebackup.core.clean.ScratchFiles.clear(java.io.File(cacheDir, "split"))
                 if (sl.settings.setupDone) {
                     sl.scheduler.scheduleDaily()
                     if (sl.fileStore.queueCount(sl.clock.now(), true, true).count > 0) sl.scheduler.enqueueUpload()

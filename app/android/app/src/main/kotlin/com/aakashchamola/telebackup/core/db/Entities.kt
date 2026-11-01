@@ -91,6 +91,8 @@ data class FileEntity(
     val updatedAt: Long = 0,
     /** Topic for this file when it differs from the rule's (photos of documents go to the Documents topic). */
     val topicId: Long? = null,
+    /** 1 = sent as one file. More = a video over 2 GB cut into this many parts and sent together; such a file is never deleted by the app. */
+    @ColumnInfo(defaultValue = "1") val partCount: Int = 1,
 )
 
 @Entity(tableName = "reviews", indices = [Index("ruleId")])

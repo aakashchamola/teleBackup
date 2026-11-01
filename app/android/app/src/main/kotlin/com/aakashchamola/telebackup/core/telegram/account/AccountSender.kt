@@ -4,6 +4,7 @@ import com.aakashchamola.telebackup.core.clean.AccountVerifier
 import com.aakashchamola.telebackup.core.db.FileEntity
 import com.aakashchamola.telebackup.core.model.AccountCheck
 import com.aakashchamola.telebackup.core.model.SendAs
+import com.aakashchamola.telebackup.core.telegram.AlbumResult
 import com.aakashchamola.telebackup.core.telegram.SendJob
 import com.aakashchamola.telebackup.core.telegram.SendResult
 import com.aakashchamola.telebackup.core.telegram.TelegramSender
@@ -16,6 +17,13 @@ class AccountSender(private val auth: AccountAuth, private val gateway: TdGatewa
             AccountAuth.Readiness.Ready -> gateway.send(job, progress)
             AccountAuth.Readiness.NotLoggedIn -> SendResult.Failed(TgError.AccountLoggedOut)
             AccountAuth.Readiness.Offline -> SendResult.Failed(TgError.Network)
+        }
+
+    override suspend fun sendAlbum(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): AlbumResult =
+        when (auth.ensureReady()) {
+            AccountAuth.Readiness.Ready -> gateway.sendAlbum(jobs, progress)
+            AccountAuth.Readiness.NotLoggedIn -> AlbumResult.Failed(TgError.AccountLoggedOut)
+            AccountAuth.Readiness.Offline -> AlbumResult.Failed(TgError.Network)
         }
 }
 

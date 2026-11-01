@@ -117,7 +117,7 @@ class MemFiles : FileStore {
     override fun interrupted() = rows.values.filter { it.state == FileState.UPLOADING }
     override fun byRuleAndStates(ruleId: Long, states: Set<FileState>) = rows.values.filter { it.ruleId == ruleId && it.state in states }
     override fun verifiedDue(ruleId: Long, now: Long, limit: Int) =
-        rows.values.filter { it.ruleId == ruleId && it.state == FileState.VERIFIED && (it.deleteAfter ?: Long.MAX_VALUE) <= now }
+        rows.values.filter { it.ruleId == ruleId && it.state == FileState.VERIFIED && it.partCount == 1 && (it.deleteAfter ?: Long.MAX_VALUE) <= now }
             .sortedBy { it.takenAt }.take(limit)
     override fun inReview(reviewId: Long) = rows.values.filter { it.reviewId == reviewId }
     override fun setReview(fileIds: List<Long>, reviewId: Long?) { fileIds.forEach { id -> rows[id]?.let { rows[id] = it.copy(reviewId = reviewId) } } }

@@ -50,8 +50,30 @@ class RouterTest {
         assertThat((d(2_000_000, FileKind.PHOTO, UploadAs.MEDIA, "pano.jpg", 12000, 1000) as RouteDecision.Go).sendAs).isEqualTo(SendAs.DOCUMENT)
         assertThat((d(2_000_000, FileKind.PHOTO, UploadAs.MEDIA, "thin.jpg", 3000, 100) as RouteDecision.Go).sendAs).isEqualTo(SendAs.DOCUMENT)
     }
-    @Test fun overTwoGigabytesIsSkipped() {
-        assertThat(d(2_100_000_000, FileKind.VIDEO, UploadAs.MEDIA, "a.mp4")).isInstanceOf(RouteDecision.Skip::class.java)
+    @Test fun aVideoOverTwoGigabytesIsCutIntoPartsForTheAccount() {
+        val go = d(2_100_000_000, FileKind.VIDEO, UploadAs.MEDIA, "a.mp4") as RouteDecision.Go
+        assertThat(go.route).isEqualTo(Route.ACCOUNT)
+        assertThat(go.sendAs).isEqualTo(SendAs.VIDEO)
+        assertThat(go.parts).isEqualTo(2)
+        assertThat((d(2_900_000_000, FileKind.VIDEO, UploadAs.ORIGINAL, "a.MOV") as RouteDecision.Go).sendAs).isEqualTo(SendAs.DOCUMENT)
+        assertThat((d(2_900_000_000, FileKind.VIDEO, UploadAs.MEDIA, "a.mp4") as RouteDecision.Go).parts).isEqualTo(2)
+    }
+
+    @Test fun otherOverTwoGigabyteFilesAreStillSkipped() {
+        assertThat(d(2_100_000_000, FileKind.PHOTO, UploadAs.MEDIA, "a.jpg")).isInstanceOf(RouteDecision.Skip::class.java)
+        assertThat(d(2_100_000_000, FileKind.VIDEO, UploadAs.MEDIA, "a.mkv")).isInstanceOf(RouteDecision.Skip::class.java)   // not a format we can cut
+        assertThat(d(30_000_000_000, FileKind.VIDEO, UploadAs.MEDIA, "a.mp4")).isInstanceOf(RouteDecision.Skip::class.java)   // more than 10 parts
+    }
+
+    @Test fun splitPlanMath() {
+        assertThat(SplitPlan.partsNeeded(1_000_000_000)).isEqualTo(1)
+        assertThat(SplitPlan.partsNeeded(1_900_000_000)).isEqualTo(1)
+        assertThat(SplitPlan.partsNeeded(1_900_000_001)).isEqualTo(2)
+        assertThat(SplitPlan.partsNeeded(2_817_722_834)).isEqualTo(2)
+        assertThat(SplitPlan.targetPartBytes(2_817_722_834, 2)).isEqualTo(1_408_861_417L)
+        assertThat(SplitPlan.partName("VID_1.mp4", 0, 2)).isEqualTo("VID_1 (part 1 of 2).mp4")
+        assertThat(SplitPlan.canSplit("x.MP4")).isTrue()
+        assertThat(SplitPlan.canSplit("x.mkv")).isFalse()
     }
 }
 
