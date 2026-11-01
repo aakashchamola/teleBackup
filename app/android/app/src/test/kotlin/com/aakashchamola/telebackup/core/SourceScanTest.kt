@@ -12,7 +12,7 @@ class SourceScanTest {
     private val root: File = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
         .map { File(it, "src/main/kotlin") }.first { it.isDirectory }
 
-    private fun mainFiles(): List<File> = root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+    private fun mainFiles(): List<File> = root.walkTopDown().filter { it.isFile && it.extension == "kt" && !it.name.endsWith(".g.kt") }.toList()
 
     private fun code(f: File): String = f.readLines()
         .filterNot { val t = it.trim(); t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") }

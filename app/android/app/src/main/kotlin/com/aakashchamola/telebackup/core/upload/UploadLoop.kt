@@ -189,6 +189,7 @@ class UploadLoop(
 
         return when (result) {
             is SendResult.Sent -> {
+                if (route == Route.BOT) settings.botProblem = false
                 val uploaded = files.apply(file.id, FileEvent.Sent(result.message, hash), clock.now())
                 events.add(EventKind.UPLOADED, "${file.displayName} uploaded", rule.id, file.id, file.sizeBytes)
                 checkAndVerify(uploaded, rule, result.message, job)
@@ -244,10 +245,12 @@ class UploadLoop(
             }
             TgError.BadToken -> {
                 botStopped = true
+                settings.botProblem = true
                 events.add(EventKind.BOT_PROBLEM, "The bot token no longer works")
             }
             is TgError.Forbidden -> {
                 botStopped = true
+                settings.botProblem = true
                 events.add(EventKind.BOT_PROBLEM, "The bot cannot post to the group")
             }
             TgError.AccountLoggedOut -> {

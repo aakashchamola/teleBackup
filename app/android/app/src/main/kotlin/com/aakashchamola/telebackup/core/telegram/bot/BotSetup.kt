@@ -30,10 +30,11 @@ class BotSetup(
     private val settings: SettingsRepository,
     private val topics: TopicStore,
     private val clock: Clock,
+    private val storedToken: () -> String? = { null },
     private val apiFor: (tokenProvider: () -> String?) -> BotApi,
 ) {
     @Volatile private var token: String? = null
-    private val api get() = apiFor { token }
+    private val api get() = apiFor { token ?: storedToken() }
 
     /** Checks the token with getMe. On success remembers it for the next calls and saves the bot's name. */
     suspend fun checkToken(candidate: String): ApiResult<BotUser> {

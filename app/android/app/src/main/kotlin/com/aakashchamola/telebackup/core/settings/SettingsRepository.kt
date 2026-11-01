@@ -28,6 +28,7 @@ class SettingsRepository(private val kv: KeyValueStore) {
         const val ACCOUNT_STATE = "account.state"
         const val ACCOUNT_NAME = "account.displayName"
         const val DELETES_BLOCKED = "deletes.blockedReason"
+        const val BOT_PROBLEM = "telegram.botProblem"
         const val ALLOW_BOT_ONLY_DELETE = "delete.allowBotOnly"
         const val LAST_SCAN = "stats.lastScanAt"
         const val LAST_UPLOAD = "stats.lastUploadAt"
@@ -79,6 +80,9 @@ class SettingsRepository(private val kv: KeyValueStore) {
         get() = kv.get(Keys.ACCOUNT_STATE)?.let { runCatching { AccountValue.valueOf(it) }.getOrNull() } ?: AccountValue.NONE
         set(v) = put(Keys.ACCOUNT_STATE, v.name)
     var accountName: String? get() = kv.get(Keys.ACCOUNT_NAME); set(v) = put(Keys.ACCOUNT_NAME, v)
+
+    /** Set when Telegram refused the bot (bad token, removed from the group); cleared by the next good bot send. */
+    var botProblem: Boolean get() = bool(Keys.BOT_PROBLEM, false); set(v) = put(Keys.BOT_PROBLEM, v)
 
     var deletesBlockedReason: String? get() = kv.get(Keys.DELETES_BLOCKED); set(v) = put(Keys.DELETES_BLOCKED, v)
 
