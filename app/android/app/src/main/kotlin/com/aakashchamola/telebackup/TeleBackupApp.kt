@@ -12,6 +12,8 @@ class TeleBackupApp : Application() {
             try {
                 val sl = ServiceLocator.get(this)
                 sl.notifier.createChannels()
+                // a new process has no run going: remove a "Backing up" notification an earlier process left behind
+                sl.notifier.cancelProgress()
                 if (sl.settings.setupDone) {
                     sl.scheduler.scheduleDaily()
                     if (sl.fileStore.queueCount(sl.clock.now(), true, true).count > 0) sl.scheduler.enqueueUpload()

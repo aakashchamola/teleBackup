@@ -12,7 +12,7 @@ Answers from `docs/phases/M1.md`. Each row: what was tried, what happened, and w
 | Q3 | Does `sendVideo` keep the video bytes? What does `sendPhoto` do to a full-resolution photo (sizes in `photo[]`)? | `sendPhoto` of a 4000x3000 JPEG (2,027,563 B) came back as 5 sizes, largest 2560x1920 / 785,596 B: re-encoded and downscaled, so the original is NOT kept. `sendDocument` of the same file: `file_size` 2,027,563 = local, and a download through `getFile` was byte-identical (SHA-256 equal). `sendVideo` of a 30,645,709 B clip: `video.file_size` = local size exactly (30 MB is over the bot download limit of 20 MB, so bytes not compared here; needs the account, Q6). | Photos sent as media can only be checked by aspect ratio and "not smaller than", never by size; originals belong in `sendDocument` (the rule `uploadAs=document` exists for this). | |
 | Q4 | Is the bot reply enough to match the file (size, dimensions, duration)? When does 429 start, what `retry_after`? | Size: yes for documents and videos (exact match). Dimensions and duration: NO. My ffmpeg clips came back as 320x320, duration 0 because the bot did not read them; a sender must pass `width`/`height`/`duration` itself and the reply check must not compare them unless it did. 429: 25 `sendMessage` in a row into one topic gave no 429 (about 4 per second), so the start point is not found; the pacer keeps its conservative default. | `Verifier`: for video/document compare `file_size` only; for photo-as-media compare ratio. | |
 | Q5 | Which TDLib works on Android: prebuilt artifact or our own build? Version? | A community prebuilt AAR on Maven Central (`io.github.tdlib-android:core:0.1.1`, by one person, BSL-1.0, 4 ABIs, TDLib 1.8.67 with the new `topicId: MessageTopic` API) loads on the Moto G62, starts, reaches the phone-number step in 3 s and rejects a made-up api_id (`TdlibSmokeTest`). It is NOT the official distribution and the binary holds the account session, so it is used for development and the test; before a family release build it from tdlib/td (same `org.drinkless.tdlib` API, a drop-in swap of the dependency). | `TdlibGateway` uses `MessageTopicForum(forumTopicId)` for the topic. | TELEGRAM.md |
-| Q6 | Can the account re-fetch a message the bot posted (id conversion)? | | | |
+| Q6 | Can the account re-fetch a message the bot posted (id conversion)? | **Yes.** The bot posted a 2,027,563-byte document as message 40 in a topic (thread 39); the account's `getMessage(chat, 40 << 20)` returned it with the same size, the same `file_unique_id` and the topic as `MessageTopicForum(39)`. A made-up id gave `NotFound`. The shift by 20 bits works for this supergroup (`TdIds`). The group had to be loaded first (`GetChats` main list) for TDLib to know it. | None: the design stands (`AccountRecheck`). | TELEGRAM.md |
 | Q7 | Does the foreground service survive the screen off for hours? Can it start from the background (with battery exemption)? | | | |
 
 ## Other things measured
@@ -24,16 +24,16 @@ Answers from `docs/phases/M1.md`. Each row: what was tried, what happened, and w
 | Bot: HEIC as photo | |
 | Bot: rotated video width/height | INCONCLUSIVE: the reply gave 320x320 for every video (see Q4). |
 | Bot: unicode file name shown right | INCONCLUSIVE: the reply said `file_name: "file"` for `ünïcödé name & spaces (1).jpg`, but it was sent with curl on Windows (its multipart name handling), not from the app. Re-test from the Kotlin sender. |
-| TDLib: login states seen (any email step?) | |
-| TDLib: what was needed before `getChat` on the group worked | |
+| TDLib: login states seen (any email step?) | Phone number, then a code sent to the Telegram app (shown as "Telegram app"), then Ready for this account. No e-mail step and no password step were asked for. Logged in on the phone by the owner; the app never sees the code in this chat. |
+| TDLib: what was needed before `getChat` on the group worked | `GetChat` failed for the group until `GetChats(ChatListMain, 200)` had run once; then it worked. `TdlibGateway.knowChat` does this. The account must already be a member (here it is the group's creator). |
 | TDLib: topic parameter name in `sendMessage` | `SendMessage.topicId: MessageTopic` (`MessageTopicForum(forumTopicId: int)`), not `messageThreadId`. Written but not yet run against Telegram (needs the account login). |
-| TDLib: upload speed (MB/s) on home Wi-Fi | |
-| TDLib: resume after Wi-Fi drop mid-file | |
+| TDLib: upload speed (MB/s) on home Wi-Fi | 74,872,528 bytes (document) in 9.3 s = about 8 MB/s on the owner's home Wi-Fi (Airtel, 5 GHz, link 390 Mbit/s). |
+| TDLib: resume after Wi-Fi drop mid-file | **Resumes from the middle.** A 1,073,741,824-byte file: Wi-Fi and mobile data switched off at 314 MB for 40 s; progress went 339 MB, then (after a 63 s stall, about 28 s of it TDLib reconnecting) 345 MB and on, not back to 0. Finished with the exact size, 153 s in all. |
 | Delete: `contentResolver.delete` vs `File.delete` + scan | End to end on the phone (`BotEndToEndTest`, run twice): a test JPEG written with the File API (not in MediaStore) was found by the scanner's file fallback, sent by the bot to a new topic, reply check passed (VERIFIED), the cleaner made a review and deleted nothing, the review was approved, then `FileDeleter` removed the file (state DELETED). On the phone, `AndroidFileDeleter` (All files access granted) deleted a test file in `Pictures/teleBackupTest/` and reported the freed bytes; a missing file is reported as a failure (`FileDeleterTest`, 2/2 pass). Not yet checked: the Gallery app after delete, WhatsApp/Screenshots/Camera folders, no-permission behaviour. |
 | Background: heartbeat gaps on charger / on battery | |
 | Background: Android 15 time limit stop reason | |
 | Background: maker settings needed | |
-| SHA-256 of 1 GB on the phone (seconds) | |
+| SHA-256 of 1 GB on the phone (seconds) | 3.3 s with a 1 MB buffer (random data, 1,073,741,824 bytes). |
 
 ## Decisions
 | # | Decision | Answer | Decided by |

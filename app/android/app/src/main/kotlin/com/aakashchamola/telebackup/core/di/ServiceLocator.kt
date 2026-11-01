@@ -124,6 +124,11 @@ class ServiceLocator private constructor(val context: Context) {
         override fun fileFinished(filesDone: Int, filesTotal: Int) {
             runTracker.filesDone = filesDone; notifier.updateProgress(force = true); statusHub.refresh()
         }
+        override fun runEnded(reason: StopReason) {
+            // the run is over, whoever started it: nothing is "being backed up" any more
+            runTracker.end()
+            notifier.cancelProgress(); statusHub.refresh()
+        }
     }
 
     /** Raises a notification for each blocking warning (not for ones shown on Home only). */

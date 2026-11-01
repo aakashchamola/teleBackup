@@ -14,13 +14,14 @@ Everything that can be built and proven on a computer is built and tested. What 
 | On the Moto G62 (Android 13): migration, real Keystore, MediaStore scan, file delete, TDLib starts and asks for a phone number | `:app:connectedDebugAndroidTest` (5 + 1 pass) |
 | The whole bot path on the phone: scan, upload to a topic, reply check, review, delete through the gate | `BotEndToEndTest` (`am instrument`, token from the vault), passed twice |
 | Bot API facts (photo shrinking, 50 MB edge, errors, byte-exact download) | `docs/M1_FINDINGS.md` |
+| **Account login and sending as the account, on the phone** (logged in by the owner): 75 MB in 9.3 s; 1 GB with a 40 s network drop resumed from the middle and arrived byte-exact; the account re-fetched a message the bot posted (Q6); a message that does not exist is `NotFound` | `AccountEndToEndTest` (2 tests), `docs/M1_FINDINGS.md`; JVM: `AccountTest` (11), `TdErrorsTest` (3) |
+| The "Backing up" notification clears when a run ends (and a leftover from an earlier process is removed at start) | `ProgressNotificationTest` on the phone |
 
 ## Not done, and why
 | Item | Needs | Phase |
 |---|---|---|
 | Run the app on the phone, record the phone model | The phone plugged in with USB debugging (`adb devices` shows nothing now) | M0 |
 | Every M1 question (Q1-Q7), `docs/M1_FINDINGS.md` | Phone + throwaway Telegram group with Topics + bot token (`tools/make_testkit.sh`, `tools/push_testkit.sh` are written, not yet run) | M1 |
-| **Account login and a real send as the account** (the code is written and runs: `AccountAuth`, `AccountSender`, `AccountRecheck`, `TdlibGateway`; 11 + 3 JVM tests with a fake gateway) | **api_id and api_hash** from my.telegram.org (only the owner can get them), then the owner logs in once on the phone. After that: a 75 MB send, a 1 GB send with a Wi-Fi drop, and the bot-message re-fetch (Q6) are still to be run | M1/M3/M4 |
 | TDLib binary: the one in use is a community build | Build it from tdlib/td before a family release (`docs/M1_FINDINGS.md` Q5) | M7 |
 | D1: may a bot-only setup delete? | The owner. Default is **no** (`delete.allowBotOnly = false`), so with no account **nothing is ever deleted** | M1 |
 | Device checks F1-F15, background survival for hours, Android 15 time limit, maker settings | Phone | M3/M6 |

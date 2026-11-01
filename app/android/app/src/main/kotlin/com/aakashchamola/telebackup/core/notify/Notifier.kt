@@ -95,6 +95,8 @@ class Notifier(
 
     /** Updates the progress notification at most once a second. */
     fun updateProgress(force: Boolean = false) {
+        // never show "Backing up" for a run that is over: a late update or a leftover must clear it, not repost it
+        if (!tracker.running) { cancelProgress(); return }
         val now = clock.now()
         if (!force && now - lastProgressAt < 1000) return
         lastProgressAt = now
