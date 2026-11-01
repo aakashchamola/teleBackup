@@ -1,0 +1,45 @@
+# secrets: never commit
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
+local.properties
+google-services.json
+*.session
+*.session-journal
+tdlib/
+tdlib-db/
+secrets/
+
+# flutter / dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# android
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.apk
+*.aab
+*.iml
+.gradle/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# ide / os
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# graphify output (rebuilt locally)
+graphify-out/
