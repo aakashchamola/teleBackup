@@ -36,7 +36,7 @@ The owner and their family. Sideloaded APK, no Play Store. Each person uses thei
 | Pause | Pause lets the **current file finish**, then holds the queue. Delay 2h / 5h sets a timer then resumes. Resume restarts at once. Delay options editable in settings. | Simple and safe, no half-uploaded files. |
 | Failures | Retry quietly with backoff. A failing file is skipped and listed in history. Notify only for things the person must fix: login expired, permission lost. | Thousands of files would make per-file alerts useless. |
 | Retrieval | Version 1: use the **Telegram app** to browse. No restore, no gallery in teleBackup. Captions carry filename and date. | Keeps scope small. |
-| Distribution | Sideloaded APK, own private GitHub repo `skyflockuav/teleBackup`, next to flyMe on disk. | Family only. |
+| Distribution | Sideloaded APK, own private GitHub repo `aakashchamola/teleBackup` (personal, kept apart from flyMe and Skyflock), at `~/PX4-Autopilot/src/project/teleBackup`. | Family only. |
 | Testing | Owner's real phone in debug mode (cable or wireless debugging), throwaway Telegram group, test folder. | Background and delete behaviour differ by phone. |
 
 ## Not in version 1
