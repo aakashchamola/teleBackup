@@ -98,7 +98,13 @@ class MemFiles : FileStore {
                 ((f.state == FileState.QUEUED && (f.nextAttemptAt == null || f.nextAttemptAt <= now)) ||
                     (f.state == FileState.FAILED && (f.nextAttemptAt ?: Long.MAX_VALUE) <= now)) &&
                 (if (f.route == Route.ACCOUNT) allowAccount else allowBot)
-        }.sortedWith(compareByDescending<FileEntity> { it.takenAt }.thenByDescending { it.id }).firstOrNull()
+        }.sortedWith(compareBy<FileEntity> { it.takenAt }.thenBy { it.id }).firstOrNull()
+    override fun queuedSameDay(ruleId: Long, documents: Boolean, from: Long, to: Long, topicId: Long?, exceptId: Long, now: Long, limit: Int): List<FileEntity> =
+        rows.values.filter { f ->
+            f.ruleId == ruleId && f.state == FileState.QUEUED && (f.nextAttemptAt == null || f.nextAttemptAt <= now) &&
+                (f.route == Route.BOT || f.route == null) && f.takenAt >= from && f.takenAt < to && f.topicId == topicId && f.id != exceptId &&
+                (if (documents) f.sendAs == SendAs.DOCUMENT else (f.sendAs == SendAs.PHOTO || f.sendAs == SendAs.VIDEO))
+        }.sortedWith(compareBy<FileEntity> { it.takenAt }.thenBy { it.id }).take(limit)
     override fun queueCount(now: Long, allowBot: Boolean, allowAccount: Boolean): QueueCount {
         val q = rows.values.filter { f ->
             ((f.state == FileState.QUEUED) || (f.state == FileState.FAILED && (f.nextAttemptAt ?: Long.MAX_VALUE) <= now)) &&
@@ -156,6 +162,18 @@ class FakeHasher : Hasher {
 
 class FakeSender(var responder: (SendJob) -> SendResult) : TelegramSender {
     val jobs = ArrayList<SendJob>()
+    /** Albums are off unless a test turns them on, so the older tests keep seeing one send per file. */
+    var albumsSupported = false
+    val albums = ArrayList<List<SendJob>>()
+    var albumResponder: ((List<SendJob>) -> AlbumResult?)? = null
+    override suspend fun sendAlbum(jobs: List<SendJob>, progress: (Long, Long) -> Unit): AlbumResult {
+        if (!albumsSupported) return AlbumResult.Unsupported
+        albums += jobs
+        albumResponder?.invoke(jobs)?.let { return it }
+        return AlbumResult.Sent(jobs.mapIndexed { i, j ->
+            SentMessage(j.chatId, j.threadId, 5000L + albums.size * 20 + i, "u", j.sizeBytes, j.width, j.height, j.durationMs, j.sendAs)
+        })
+    }
     override suspend fun send(job: SendJob, progress: (Long, Long) -> Unit): SendResult {
         jobs += job
         progress(job.sizeBytes, job.sizeBytes)

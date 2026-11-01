@@ -112,6 +112,7 @@ class Rule {
     required this.enabled,
     required this.dryRun,
     required this.deleteWarningAccepted,
+    this.sortDocuments = false,
   });
   int? id; // null when new
   String name;
@@ -128,6 +129,7 @@ class Rule {
   bool enabled;
   bool dryRun;
   bool deleteWarningAccepted;
+  bool sortDocuments; // photos of documents and paper go to the Documents topic (needs one chosen in Settings)
 }
 
 class RuleStats {
@@ -272,7 +274,9 @@ class Review {
 
 // ---------- settings ----------
 class AppSettings {
-  AppSettings({required this.allowMobileData, required this.delayOptionsMinutes, required this.defaultRetentionDays, required this.setupDone, required this.setupStep, required this.debugBuild});
+  AppSettings({required this.allowMobileData, required this.delayOptionsMinutes, required this.defaultRetentionDays, required this.setupDone, required this.setupStep, required this.debugBuild, this.groupByDay = true, this.documentsTopicId});
+  bool groupByDay; // a day's photos and videos go together as albums
+  int? documentsTopicId; // topic for sorted-out documents; null = none chosen
   bool allowMobileData;
   List<int> delayOptionsMinutes;
   int defaultRetentionDays;
@@ -391,6 +395,12 @@ abstract class CoreHostApi {
   AppSettings getSettings();
   @async
   void setAllowMobileData(bool on);
+  @async
+  void setGroupByDay(bool on);
+  @async
+  void setDocumentsTopic(int? topicId); // null turns the Documents topic off
+  @async
+  int createDocumentsTopic(); // makes the topic 'Documents' in the group, chooses it, returns its id
   @async
   void setDelayOptions(List<int> minutes);
   @async

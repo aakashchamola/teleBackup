@@ -49,7 +49,7 @@ internal fun RuleEntity.toBridge() = Rule(
     mediaTypes = mediaTypes.asBridge<MediaTypes>(), topicId = topicId, newTopicName = null,
     uploadAs = uploadAs.asBridge<UploadAs>(), mode = mode.asBridge<RuleMode>(), retentionDays = retentionDays.toLong(),
     startMode = startMode.asBridge<StartMode>(), startDate = startDate, enabled = enabled, dryRun = dryRun,
-    deleteWarningAccepted = deleteWarningAcceptedAt != null,
+    deleteWarningAccepted = deleteWarningAcceptedAt != null, sortDocuments = sortDocuments,
 )
 
 /** A rule from the screen. [acceptedAt] is when the delete warning was accepted before (kept), or now if it was just accepted. */
@@ -59,7 +59,7 @@ internal fun Rule.toEntity(existing: RuleEntity?, now: Long, topicId: Long?) = R
     uploadAs = uploadAs.asCore<CoreUploadAs>(), mode = mode.asCore<CoreRuleMode>(), retentionDays = retentionDays.toInt(),
     startMode = startMode.asCore<CoreStartMode>(), startDate = startDate, enabled = enabled, dryRun = dryRun,
     deleteWarningAcceptedAt = if (deleteWarningAccepted) (existing?.deleteWarningAcceptedAt ?: now) else null,
-    deletedAt = existing?.deletedAt, createdAt = existing?.createdAt ?: now, updatedAt = now,
+    deletedAt = existing?.deletedAt, createdAt = existing?.createdAt ?: now, updatedAt = now, sortDocuments = sortDocuments,
 )
 
 internal fun TopicEntity.toBridge() = Topic(threadId, name, missing, source == com.aakashchamola.telebackup.core.model.TopicSource.CREATED_BY_APP)

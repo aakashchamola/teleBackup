@@ -21,6 +21,8 @@ class SettingsRepository(private val kv: KeyValueStore) {
         const val MAX_ATTEMPTS = "upload.maxAttempts"
         const val BOT_MAX_BYTES = "upload.botMaxBytes"
         const val BOT_PHOTO_MAX = "upload.botPhotoMaxBytes"
+        const val GROUP_BY_DAY = "upload.groupByDay"
+        const val DOCUMENTS_TOPIC = "documents.topicId"
         const val BOT_ID = "telegram.botId"
         const val BOT_USERNAME = "telegram.botUsername"
         const val CHAT_ID = "telegram.chatId"
@@ -70,6 +72,12 @@ class SettingsRepository(private val kv: KeyValueStore) {
     val maxAttempts: Int get() = int(Keys.MAX_ATTEMPTS, 5)
     val botMaxBytes: Long get() = long(Keys.BOT_MAX_BYTES) ?: 52_428_800L
     val botPhotoMaxBytes: Long get() = long(Keys.BOT_PHOTO_MAX) ?: 10_485_760L
+
+    /** Photos and videos taken on the same day are sent together as albums of up to 10 (on by default). */
+    var groupByDay: Boolean get() = bool(Keys.GROUP_BY_DAY, true); set(v) = put(Keys.GROUP_BY_DAY, v)
+
+    /** Topic that photos of documents and paper go to, whatever folder they are in. Null = not sorted out. */
+    var documentsTopicId: Long? get() = long(Keys.DOCUMENTS_TOPIC); set(v) = put(Keys.DOCUMENTS_TOPIC, v)
 
     var botId: Long? get() = long(Keys.BOT_ID); set(v) = put(Keys.BOT_ID, v)
     var botUsername: String? get() = kv.get(Keys.BOT_USERNAME); set(v) = put(Keys.BOT_USERNAME, v)

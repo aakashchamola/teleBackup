@@ -10,7 +10,7 @@ Each milestone has its own step-by-step file in [phases/](phases/README.md) (tas
 |---|---|---|
 | M0 | Tools and hello-world | Flutter, Android SDK and JDK 17 installed on the owner's own computer. The owner's phone is connected in debug mode (USB). A blank teleBackup app runs on it and pings its Kotlin side. |
 | M1 | Proof of concept (the spike) | On the phone, in a test folder: one photo goes to a topic through the **bot**; one video over 50 MB goes through the **account**; the reply is checked; the file is deleted. Also answers the "check on device" list below. |
-| M2 | Rules, database, scanner | Rules saved. The daily scan queues the right files, newest first. State machine tests pass. |
+| M2 | Rules, database, scanner | Rules saved. The daily scan queues the right files, oldest first. State machine tests pass. |
 | M3 | Background upload and notification | Queue uploads on Wi-Fi in the background with the progress notification. Pause, Delay 2h/5h and Resume work. Wi-Fi loss and phone restart resume cleanly. |
 | M4 | Verify and delete | Retention delete works, with dry-run. Nothing unconfirmed is ever deleted (tests try to force it). |
 | M5 | Screens and family setup | Settings, rules list, history, guided Telegram setup (bot, group, topics, account login) a family member can finish alone. |

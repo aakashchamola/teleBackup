@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 
 /**
  * Every Room migration is tested from every older schema (docs/DATA_MODEL.md "Migrations").
- * There is only version 1 today, so this proves the exported schema opens; add a test per migration from version 2 on.
+ * Version 1 must open and keep its rows, and every later version must be reached from it with nothing lost.
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationTest {
@@ -26,6 +26,26 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate("migration-test", 1, true)
         db.query("SELECT value FROM settings WHERE `key` = 'app.setupStep'").use {
             check(it.moveToFirst() && it.getString(0) == "O3")
+        }
+    }
+
+    @Test
+    fun version1MigratesTo2KeepingRowsAndAddingTheNewColumns() {
+        helper.createDatabase("migration-test-2", 1).apply {
+            execSQL("INSERT INTO settings(`key`, value) VALUES('telegram.chatId', '-1001')")
+            execSQL(
+                "INSERT INTO rules(name, folderPath, includeSubfolders, mediaTypes, uploadAs, mode, retentionDays, startMode, enabled, dryRun, createdAt, updatedAt) " +
+                    "VALUES('Old rule', 'DCIM/Camera/', 0, 'BOTH', 'MEDIA', 'UPLOAD_ONLY', 7, 'TODAY', 1, 1, 1, 1)",
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("migration-test-2", 2, true, AppDatabase.MIGRATION_1_2)
+        db.query("SELECT value FROM settings WHERE `key` = 'telegram.chatId'").use { check(it.moveToFirst() && it.getString(0) == "-1001") }
+        // an old rule keeps working and has document sorting off
+        db.query("SELECT name, sortDocuments FROM rules").use { check(it.moveToFirst() && it.getString(0) == "Old rule" && it.getInt(1) == 0) }
+        db.query("PRAGMA table_info(files)").use { c ->
+            val names = generateSequence { if (c.moveToNext()) c.getString(c.getColumnIndexOrThrow("name")) else null }.toList()
+            check("topicId" in names) { "files.topicId missing: $names" }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.aakashchamola.telebackup.core.telegram.bot
 
+import com.aakashchamola.telebackup.core.telegram.AlbumResult
 import com.aakashchamola.telebackup.core.telegram.SendJob
 import com.aakashchamola.telebackup.core.telegram.SendResult
 import com.aakashchamola.telebackup.core.telegram.TelegramSender
@@ -10,5 +11,11 @@ class BotSender(private val api: BotApi) : TelegramSender {
         when (val r = api.sendFile(job, progress)) {
             is ApiResult.Ok -> SendResult.Sent(r.value)
             is ApiResult.Err -> SendResult.Failed(r.error)
+        }
+
+    override suspend fun sendAlbum(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): AlbumResult =
+        when (val r = api.sendMediaGroup(jobs, progress)) {
+            is ApiResult.Ok -> AlbumResult.Sent(r.value)
+            is ApiResult.Err -> AlbumResult.Failed(r.error)
         }
 }

@@ -53,7 +53,7 @@ One row per (rule, file version). The heart of the app.
 | `kind` | TEXT enum `FileKind` | `PHOTO`, `VIDEO`. |
 | `sizeBytes` | INTEGER | At scan time. |
 | `modifiedAt` | INTEGER | File last-modified at scan time. |
-| `takenAt` | INTEGER | `DATE_TAKEN`, else date from the file name (`IMG-20261101-WA0001`), else `modifiedAt`. Sort key for "newest first". |
+| `takenAt` | INTEGER | `DATE_TAKEN`, else date from the file name (`IMG-20261101-WA0001`), else `modifiedAt`. Sort key for "oldest first". |
 | `width`, `height` | INTEGER, nullable | From MediaStore, else read on hash. |
 | `durationMs` | INTEGER, nullable | Videos. |
 | `sha256` | TEXT, nullable | Full hex. Computed just before upload (not at scan, too slow for backlog). |
@@ -179,7 +179,7 @@ WHERE state = 'QUEUED'
 ORDER BY takenAt DESC, id DESC
 LIMIT 1
 ```
-plus filters: rule enabled; route usable now (account files only when `account.state = READY`); the network constraint. Newest first covers both new files and backlog, as the plan asks.
+plus filters: rule enabled; route usable now (account files only when `account.state = READY`); the network constraint. Oldest first (owner's choice, 2026-11-02): a folder is backed up from its beginning; files taken later in a running backup simply join the end of the line.
 
 ## The delete gate
 `DeleteGate.check(file, rule, settings, disk, now): Allowed | Denied(reason)`. Pure function, no I/O (the caller passes the disk facts in). Allowed only if **all** hold:

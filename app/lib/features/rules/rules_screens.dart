@@ -380,6 +380,14 @@ class _RuleEditState extends ConsumerState<RuleEditScreen> {
                 title: const Text(S.includeSubfolders),
                 onChanged: (v) { setState(() => _rule.includeSubfolders = v ?? false); _updatePreview(); },
               ),
+              SwitchListTile(
+                key: const Key('rule-sort-documents'),
+                contentPadding: EdgeInsets.zero,
+                value: _rule.sortDocuments,
+                title: const Text(S.sortDocuments),
+                subtitle: Text(ref.watch(settingsProvider).value?.documentsTopicId == null ? S.sortDocumentsNeedsTopic : S.sortDocumentsHelp),
+                onChanged: (v) => setState(() => _rule.sortDocuments = v),
+              ),
               const SizedBox(height: 8),
               Text(S.fileTypes, style: Theme.of(context).textTheme.labelLarge),
               RadioGroup<MediaTypes>(

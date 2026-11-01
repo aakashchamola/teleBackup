@@ -144,6 +144,17 @@ class S {
   static const ruleName = 'Name';
   static const folder = 'Folder';
   static const includeSubfolders = 'Include folders inside it';
+  static const sortDocuments = 'Put photos of documents in the Documents topic';
+  static const sortDocumentsHelp = 'Photos of paper, bills, letters and ID cards go to the Documents topic, even from this folder. Videos are not checked. Off: everything stays in this folder\'s topic.';
+  static const sortDocumentsNeedsTopic = 'Choose the Documents topic in Settings first.';
+  static const sending = 'Sending';
+  static const groupByDay = 'Group each day\'s photos';
+  static const groupByDayHelp = 'Photos and videos from the same day are sent together, up to 10 in one album.';
+  static const documentsTopic = 'Documents topic';
+  static const documentsTopicNone = 'Not chosen';
+  static const documentsTopicMake = 'Make a topic called Documents';
+  static const documentsTopicOff = 'Turn off';
+  static const documentsTopicHelp = 'Where photos of documents go, for the folders that have sorting turned on.';
   static const fileTypes = 'File types';
   static const photosAndVideos = 'Photos and videos';
   static const photosOnly = 'Photos';
@@ -161,7 +172,7 @@ class S {
   static const pickFolder = 'Pick a folder.';
   static const nameUsed = 'This name is already used.';
   static String previewLine(int count, String size) =>
-      count == 0 ? 'Nothing to add right now.' : 'This adds ${plural(count, 'file')} ($size), newest first.';
+      count == 0 ? 'Nothing to add right now.' : 'This adds ${plural(count, 'file')} ($size), oldest first.';
 
   // dialogs
   static const deleteOnTitle = 'Delete from this phone?';

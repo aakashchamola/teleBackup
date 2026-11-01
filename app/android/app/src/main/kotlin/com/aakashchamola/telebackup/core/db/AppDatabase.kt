@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.io.File
 
 /**
@@ -13,7 +15,7 @@ import java.io.File
  */
 @Database(
     entities = [RuleEntity::class, TopicEntity::class, FileEntity::class, ReviewEntity::class, EventEntity::class, SettingEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,9 +29,18 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val FILE_NAME = "telebackup.db"
 
+        /** 2: files.topicId (a topic of the file's own, for documents) and rules.sortDocuments (off for every existing rule). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE files ADD COLUMN topicId INTEGER")
+                db.execSQL("ALTER TABLE rules ADD COLUMN sortDocuments INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, File(context.noBackupFilesDir, FILE_NAME).absolutePath)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addMigrations(MIGRATION_1_2)
                 .build()
     }
 }

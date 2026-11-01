@@ -73,6 +73,9 @@ class RoomFileStore(private val db: AppDatabase) : FileStore {
         dao.nextInQueue(now, allowBot, allowAccount, excludeRuleIds.ifEmpty { setOf(-1L) }.toList())
 
     override fun queueCount(now: Long, allowBot: Boolean, allowAccount: Boolean) = dao.queueCount(now, allowBot, allowAccount)
+    override fun queuedSameDay(ruleId: Long, documents: Boolean, from: Long, to: Long, topicId: Long?, exceptId: Long, now: Long, limit: Int) =
+        if (documents) dao.queuedSameDay(ruleId, "DOCUMENT", "DOCUMENT", from, to, topicId, exceptId, now, limit)
+        else dao.queuedSameDay(ruleId, "PHOTO", "VIDEO", from, to, topicId, exceptId, now, limit)
     override fun waitingAccountCount() = dao.waitingAccountCount()
     override fun earliestRetryAt() = dao.earliestRetryAt()
     override fun interrupted() = dao.interrupted()

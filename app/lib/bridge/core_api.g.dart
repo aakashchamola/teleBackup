@@ -407,6 +407,7 @@ class Rule {
     required this.enabled,
     required this.dryRun,
     required this.deleteWarningAccepted,
+    this.sortDocuments = false,
   });
 
   int? id;
@@ -439,6 +440,8 @@ class Rule {
 
   bool deleteWarningAccepted;
 
+  bool sortDocuments;
+
   List<Object?> _toList() {
     return <Object?>[
       id,
@@ -456,6 +459,7 @@ class Rule {
       enabled,
       dryRun,
       deleteWarningAccepted,
+      sortDocuments,
     ];
   }
 
@@ -480,6 +484,7 @@ class Rule {
       enabled: result[12]! as bool,
       dryRun: result[13]! as bool,
       deleteWarningAccepted: result[14]! as bool,
+      sortDocuments: result[15]! as bool,
     );
   }
 
@@ -492,7 +497,7 @@ class Rule {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(id, other.id) && _deepEquals(name, other.name) && _deepEquals(folderPath, other.folderPath) && _deepEquals(includeSubfolders, other.includeSubfolders) && _deepEquals(mediaTypes, other.mediaTypes) && _deepEquals(topicId, other.topicId) && _deepEquals(newTopicName, other.newTopicName) && _deepEquals(uploadAs, other.uploadAs) && _deepEquals(mode, other.mode) && _deepEquals(retentionDays, other.retentionDays) && _deepEquals(startMode, other.startMode) && _deepEquals(startDate, other.startDate) && _deepEquals(enabled, other.enabled) && _deepEquals(dryRun, other.dryRun) && _deepEquals(deleteWarningAccepted, other.deleteWarningAccepted);
+    return _deepEquals(id, other.id) && _deepEquals(name, other.name) && _deepEquals(folderPath, other.folderPath) && _deepEquals(includeSubfolders, other.includeSubfolders) && _deepEquals(mediaTypes, other.mediaTypes) && _deepEquals(topicId, other.topicId) && _deepEquals(newTopicName, other.newTopicName) && _deepEquals(uploadAs, other.uploadAs) && _deepEquals(mode, other.mode) && _deepEquals(retentionDays, other.retentionDays) && _deepEquals(startMode, other.startMode) && _deepEquals(startDate, other.startDate) && _deepEquals(enabled, other.enabled) && _deepEquals(dryRun, other.dryRun) && _deepEquals(deleteWarningAccepted, other.deleteWarningAccepted) && _deepEquals(sortDocuments, other.sortDocuments);
   }
 
   @override
@@ -501,7 +506,7 @@ class Rule {
 
   @override
   String toString() {
-    return 'Rule(id: $id, name: $name, folderPath: $folderPath, includeSubfolders: $includeSubfolders, mediaTypes: $mediaTypes, topicId: $topicId, newTopicName: $newTopicName, uploadAs: $uploadAs, mode: $mode, retentionDays: $retentionDays, startMode: $startMode, startDate: $startDate, enabled: $enabled, dryRun: $dryRun, deleteWarningAccepted: $deleteWarningAccepted)';
+    return 'Rule(id: $id, name: $name, folderPath: $folderPath, includeSubfolders: $includeSubfolders, mediaTypes: $mediaTypes, topicId: $topicId, newTopicName: $newTopicName, uploadAs: $uploadAs, mode: $mode, retentionDays: $retentionDays, startMode: $startMode, startDate: $startDate, enabled: $enabled, dryRun: $dryRun, deleteWarningAccepted: $deleteWarningAccepted, sortDocuments: $sortDocuments)';
   }
 }
 
@@ -1232,6 +1237,8 @@ class Review {
 
 class AppSettings {
   AppSettings({
+    this.groupByDay = true,
+    this.documentsTopicId,
     required this.allowMobileData,
     required this.delayOptionsMinutes,
     required this.defaultRetentionDays,
@@ -1239,6 +1246,10 @@ class AppSettings {
     required this.setupStep,
     required this.debugBuild,
   });
+
+  bool groupByDay;
+
+  int? documentsTopicId;
 
   bool allowMobileData;
 
@@ -1254,6 +1265,8 @@ class AppSettings {
 
   List<Object?> _toList() {
     return <Object?>[
+      groupByDay,
+      documentsTopicId,
       allowMobileData,
       delayOptionsMinutes,
       defaultRetentionDays,
@@ -1269,12 +1282,14 @@ class AppSettings {
   static AppSettings decode(Object result) {
     result as List<Object?>;
     return AppSettings(
-      allowMobileData: result[0]! as bool,
-      delayOptionsMinutes: (result[1]! as List<Object?>).cast<int>(),
-      defaultRetentionDays: result[2]! as int,
-      setupDone: result[3]! as bool,
-      setupStep: result[4]! as String,
-      debugBuild: result[5]! as bool,
+      groupByDay: result[0]! as bool,
+      documentsTopicId: result[1] as int?,
+      allowMobileData: result[2]! as bool,
+      delayOptionsMinutes: (result[3]! as List<Object?>).cast<int>(),
+      defaultRetentionDays: result[4]! as int,
+      setupDone: result[5]! as bool,
+      setupStep: result[6]! as String,
+      debugBuild: result[7]! as bool,
     );
   }
 
@@ -1287,7 +1302,7 @@ class AppSettings {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(allowMobileData, other.allowMobileData) && _deepEquals(delayOptionsMinutes, other.delayOptionsMinutes) && _deepEquals(defaultRetentionDays, other.defaultRetentionDays) && _deepEquals(setupDone, other.setupDone) && _deepEquals(setupStep, other.setupStep) && _deepEquals(debugBuild, other.debugBuild);
+    return _deepEquals(groupByDay, other.groupByDay) && _deepEquals(documentsTopicId, other.documentsTopicId) && _deepEquals(allowMobileData, other.allowMobileData) && _deepEquals(delayOptionsMinutes, other.delayOptionsMinutes) && _deepEquals(defaultRetentionDays, other.defaultRetentionDays) && _deepEquals(setupDone, other.setupDone) && _deepEquals(setupStep, other.setupStep) && _deepEquals(debugBuild, other.debugBuild);
   }
 
   @override
@@ -1296,7 +1311,7 @@ class AppSettings {
 
   @override
   String toString() {
-    return 'AppSettings(allowMobileData: $allowMobileData, delayOptionsMinutes: $delayOptionsMinutes, defaultRetentionDays: $defaultRetentionDays, setupDone: $setupDone, setupStep: $setupStep, debugBuild: $debugBuild)';
+    return 'AppSettings(groupByDay: $groupByDay, documentsTopicId: $documentsTopicId, allowMobileData: $allowMobileData, delayOptionsMinutes: $delayOptionsMinutes, defaultRetentionDays: $defaultRetentionDays, setupDone: $setupDone, setupStep: $setupStep, debugBuild: $debugBuild)';
   }
 }
 
@@ -2308,6 +2323,61 @@ class CoreHostApi {
         isNullValid: true,
     )
     ;
+  }
+
+  Future<void> setGroupByDay(bool on) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.telebackup.CoreHostApi.setGroupByDay$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[on]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  Future<void> setDocumentsTopic(int? topicId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.telebackup.CoreHostApi.setDocumentsTopic$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[topicId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  Future<int> createDocumentsTopic() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.telebackup.CoreHostApi.createDocumentsTopic$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return pigeonVar_replyValue! as int;
   }
 
   Future<void> setDelayOptions(List<int> minutes) async {

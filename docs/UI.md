@@ -462,7 +462,7 @@ Each row shows a status (granted = green tick, missing = button). All three must
 | (o) Today  ( ) Everything            |
 | ( ) Since [ 1 Oct 2026 ]             |
 | This adds 1,204 files (4.1 GB),      |
-| newest first.                        |
+| oldest first.                        |
 |                                      |
 | After upload                         |
 | (o) Keep on phone (upload only)      |

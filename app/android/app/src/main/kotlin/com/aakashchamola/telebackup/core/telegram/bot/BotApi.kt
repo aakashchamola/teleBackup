@@ -142,6 +142,47 @@ class BotApi(
         return objCall(method, body.build()) { r -> parseSent(r, job.sendAs, job.chatId) }
     }
 
+    /** One album of 2 to 10 photos/videos. The reply is the list of messages, in the order sent. */
+    suspend fun sendMediaGroup(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): ApiResult<List<SentMessage>> {
+        require(jobs.size in 2..10) { "an album has 2 to 10 files" }
+        require(jobs.all { it.sendAs != SendAs.DOCUMENT } || jobs.all { it.sendAs == SendAs.DOCUMENT }) { "documents are not mixed with photos" }
+        val first = jobs.first()
+        if (jobs.any { !File(it.path).exists() }) return ApiResult.Err(TgError.BadRequest("file is missing"))
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", first.chatId.toString())
+            .addFormDataPart("disable_notification", "true")
+        first.threadId?.let { body.addFormDataPart("message_thread_id", it.toString()) }
+        val total = jobs.sumOf { it.sizeBytes }
+        var before = 0L
+        val items = kotlinx.serialization.json.buildJsonArray {
+            jobs.forEachIndexed { i, job ->
+                add(kotlinx.serialization.json.buildJsonObject {
+                    put("type", kotlinx.serialization.json.JsonPrimitive(when (job.sendAs) { SendAs.PHOTO -> "photo"; SendAs.VIDEO -> "video"; SendAs.DOCUMENT -> "document" }))
+                    put("media", kotlinx.serialization.json.JsonPrimitive("attach://f$i"))
+                    put("caption", kotlinx.serialization.json.JsonPrimitive(job.caption))
+                    if (job.sendAs == SendAs.VIDEO) {
+                        put("supports_streaming", kotlinx.serialization.json.JsonPrimitive(true))
+                        job.width?.let { put("width", kotlinx.serialization.json.JsonPrimitive(it)) }
+                        job.height?.let { put("height", kotlinx.serialization.json.JsonPrimitive(it)) }
+                        job.durationMs?.let { put("duration", kotlinx.serialization.json.JsonPrimitive(it / 1000)) }
+                    }
+                    if (job.sendAs == SendAs.DOCUMENT) put("disable_content_type_detection", kotlinx.serialization.json.JsonPrimitive(true))
+                })
+            }
+        }
+        body.addFormDataPart("media", items.toString())
+        jobs.forEachIndexed { i, job ->
+            val offset = before
+            before += job.sizeBytes
+            val type = (job.mimeType.ifBlank { "application/octet-stream" }).toMediaTypeOrNull()
+            body.addFormDataPart("f$i", job.displayName, ProgressFileBody(File(job.path), type) { sent, _ -> progress(offset + sent, total) })
+        }
+        return call("sendMediaGroup", body.build()) { el ->
+            val arr = el.jsonArray
+            arr.mapIndexed { i, m -> parseSent(m.jsonObject, jobs.getOrNull(i)?.sendAs ?: SendAs.PHOTO, first.chatId) }
+        }
+    }
+
     private fun parseSent(m: JsonObject, kind: SendAs, fallbackChat: Long): SentMessage {
         val chat = m["chat"]?.jsonObject?.long("id") ?: fallbackChat
         val thread = if (m.bool("is_topic_message") == true) m.long("message_thread_id") else m.long("message_thread_id")

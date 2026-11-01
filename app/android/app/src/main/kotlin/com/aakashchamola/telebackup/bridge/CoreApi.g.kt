@@ -522,7 +522,8 @@ data class Rule (
   val startDate: Long? = null,
   val enabled: Boolean,
   val dryRun: Boolean,
-  val deleteWarningAccepted: Boolean
+  val deleteWarningAccepted: Boolean,
+  val sortDocuments: Boolean
 )
  {
   companion object {
@@ -542,7 +543,8 @@ data class Rule (
       val enabled = pigeonVar_list[12] as Boolean
       val dryRun = pigeonVar_list[13] as Boolean
       val deleteWarningAccepted = pigeonVar_list[14] as Boolean
-      return Rule(id, name, folderPath, includeSubfolders, mediaTypes, topicId, newTopicName, uploadAs, mode, retentionDays, startMode, startDate, enabled, dryRun, deleteWarningAccepted)
+      val sortDocuments = pigeonVar_list[15] as Boolean
+      return Rule(id, name, folderPath, includeSubfolders, mediaTypes, topicId, newTopicName, uploadAs, mode, retentionDays, startMode, startDate, enabled, dryRun, deleteWarningAccepted, sortDocuments)
     }
   }
   fun toList(): List<Any?> {
@@ -562,6 +564,7 @@ data class Rule (
       enabled,
       dryRun,
       deleteWarningAccepted,
+      sortDocuments,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -572,7 +575,7 @@ data class Rule (
       return true
     }
     val other = other as Rule
-    return CoreApiPigeonUtils.deepEquals(this.id, other.id) && CoreApiPigeonUtils.deepEquals(this.name, other.name) && CoreApiPigeonUtils.deepEquals(this.folderPath, other.folderPath) && CoreApiPigeonUtils.deepEquals(this.includeSubfolders, other.includeSubfolders) && CoreApiPigeonUtils.deepEquals(this.mediaTypes, other.mediaTypes) && CoreApiPigeonUtils.deepEquals(this.topicId, other.topicId) && CoreApiPigeonUtils.deepEquals(this.newTopicName, other.newTopicName) && CoreApiPigeonUtils.deepEquals(this.uploadAs, other.uploadAs) && CoreApiPigeonUtils.deepEquals(this.mode, other.mode) && CoreApiPigeonUtils.deepEquals(this.retentionDays, other.retentionDays) && CoreApiPigeonUtils.deepEquals(this.startMode, other.startMode) && CoreApiPigeonUtils.deepEquals(this.startDate, other.startDate) && CoreApiPigeonUtils.deepEquals(this.enabled, other.enabled) && CoreApiPigeonUtils.deepEquals(this.dryRun, other.dryRun) && CoreApiPigeonUtils.deepEquals(this.deleteWarningAccepted, other.deleteWarningAccepted)
+    return CoreApiPigeonUtils.deepEquals(this.id, other.id) && CoreApiPigeonUtils.deepEquals(this.name, other.name) && CoreApiPigeonUtils.deepEquals(this.folderPath, other.folderPath) && CoreApiPigeonUtils.deepEquals(this.includeSubfolders, other.includeSubfolders) && CoreApiPigeonUtils.deepEquals(this.mediaTypes, other.mediaTypes) && CoreApiPigeonUtils.deepEquals(this.topicId, other.topicId) && CoreApiPigeonUtils.deepEquals(this.newTopicName, other.newTopicName) && CoreApiPigeonUtils.deepEquals(this.uploadAs, other.uploadAs) && CoreApiPigeonUtils.deepEquals(this.mode, other.mode) && CoreApiPigeonUtils.deepEquals(this.retentionDays, other.retentionDays) && CoreApiPigeonUtils.deepEquals(this.startMode, other.startMode) && CoreApiPigeonUtils.deepEquals(this.startDate, other.startDate) && CoreApiPigeonUtils.deepEquals(this.enabled, other.enabled) && CoreApiPigeonUtils.deepEquals(this.dryRun, other.dryRun) && CoreApiPigeonUtils.deepEquals(this.deleteWarningAccepted, other.deleteWarningAccepted) && CoreApiPigeonUtils.deepEquals(this.sortDocuments, other.sortDocuments)
   }
 
   override fun hashCode(): Int {
@@ -592,10 +595,11 @@ data class Rule (
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.enabled)
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.dryRun)
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.deleteWarningAccepted)
+    result = 31 * result + CoreApiPigeonUtils.deepHash(this.sortDocuments)
     return result
   }
   override fun toString(): String {
-    return "Rule(id=$id, name=$name, folderPath=$folderPath, includeSubfolders=$includeSubfolders, mediaTypes=$mediaTypes, topicId=$topicId, newTopicName=$newTopicName, uploadAs=$uploadAs, mode=$mode, retentionDays=$retentionDays, startMode=$startMode, startDate=$startDate, enabled=$enabled, dryRun=$dryRun, deleteWarningAccepted=$deleteWarningAccepted)"
+    return "Rule(id=$id, name=$name, folderPath=$folderPath, includeSubfolders=$includeSubfolders, mediaTypes=$mediaTypes, topicId=$topicId, newTopicName=$newTopicName, uploadAs=$uploadAs, mode=$mode, retentionDays=$retentionDays, startMode=$startMode, startDate=$startDate, enabled=$enabled, dryRun=$dryRun, deleteWarningAccepted=$deleteWarningAccepted, sortDocuments=$sortDocuments)"
   }
 }
 
@@ -1191,6 +1195,8 @@ data class Review (
 
 /** Generated class from Pigeon that represents data sent in messages. */
 data class AppSettings (
+  val groupByDay: Boolean,
+  val documentsTopicId: Long? = null,
   val allowMobileData: Boolean,
   val delayOptionsMinutes: List<Long>,
   val defaultRetentionDays: Long,
@@ -1201,17 +1207,21 @@ data class AppSettings (
  {
   companion object {
     fun fromList(pigeonVar_list: List<Any?>): AppSettings {
-      val allowMobileData = pigeonVar_list[0] as Boolean
-      val delayOptionsMinutes = pigeonVar_list[1] as List<Long>
-      val defaultRetentionDays = pigeonVar_list[2] as Long
-      val setupDone = pigeonVar_list[3] as Boolean
-      val setupStep = pigeonVar_list[4] as String
-      val debugBuild = pigeonVar_list[5] as Boolean
-      return AppSettings(allowMobileData, delayOptionsMinutes, defaultRetentionDays, setupDone, setupStep, debugBuild)
+      val groupByDay = pigeonVar_list[0] as Boolean
+      val documentsTopicId = pigeonVar_list[1] as Long?
+      val allowMobileData = pigeonVar_list[2] as Boolean
+      val delayOptionsMinutes = pigeonVar_list[3] as List<Long>
+      val defaultRetentionDays = pigeonVar_list[4] as Long
+      val setupDone = pigeonVar_list[5] as Boolean
+      val setupStep = pigeonVar_list[6] as String
+      val debugBuild = pigeonVar_list[7] as Boolean
+      return AppSettings(groupByDay, documentsTopicId, allowMobileData, delayOptionsMinutes, defaultRetentionDays, setupDone, setupStep, debugBuild)
     }
   }
   fun toList(): List<Any?> {
     return listOf(
+      groupByDay,
+      documentsTopicId,
       allowMobileData,
       delayOptionsMinutes,
       defaultRetentionDays,
@@ -1228,11 +1238,13 @@ data class AppSettings (
       return true
     }
     val other = other as AppSettings
-    return CoreApiPigeonUtils.deepEquals(this.allowMobileData, other.allowMobileData) && CoreApiPigeonUtils.deepEquals(this.delayOptionsMinutes, other.delayOptionsMinutes) && CoreApiPigeonUtils.deepEquals(this.defaultRetentionDays, other.defaultRetentionDays) && CoreApiPigeonUtils.deepEquals(this.setupDone, other.setupDone) && CoreApiPigeonUtils.deepEquals(this.setupStep, other.setupStep) && CoreApiPigeonUtils.deepEquals(this.debugBuild, other.debugBuild)
+    return CoreApiPigeonUtils.deepEquals(this.groupByDay, other.groupByDay) && CoreApiPigeonUtils.deepEquals(this.documentsTopicId, other.documentsTopicId) && CoreApiPigeonUtils.deepEquals(this.allowMobileData, other.allowMobileData) && CoreApiPigeonUtils.deepEquals(this.delayOptionsMinutes, other.delayOptionsMinutes) && CoreApiPigeonUtils.deepEquals(this.defaultRetentionDays, other.defaultRetentionDays) && CoreApiPigeonUtils.deepEquals(this.setupDone, other.setupDone) && CoreApiPigeonUtils.deepEquals(this.setupStep, other.setupStep) && CoreApiPigeonUtils.deepEquals(this.debugBuild, other.debugBuild)
   }
 
   override fun hashCode(): Int {
     var result = javaClass.hashCode()
+    result = 31 * result + CoreApiPigeonUtils.deepHash(this.groupByDay)
+    result = 31 * result + CoreApiPigeonUtils.deepHash(this.documentsTopicId)
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.allowMobileData)
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.delayOptionsMinutes)
     result = 31 * result + CoreApiPigeonUtils.deepHash(this.defaultRetentionDays)
@@ -1242,7 +1254,7 @@ data class AppSettings (
     return result
   }
   override fun toString(): String {
-    return "AppSettings(allowMobileData=$allowMobileData, delayOptionsMinutes=$delayOptionsMinutes, defaultRetentionDays=$defaultRetentionDays, setupDone=$setupDone, setupStep=$setupStep, debugBuild=$debugBuild)"
+    return "AppSettings(groupByDay=$groupByDay, documentsTopicId=$documentsTopicId, allowMobileData=$allowMobileData, delayOptionsMinutes=$delayOptionsMinutes, defaultRetentionDays=$defaultRetentionDays, setupDone=$setupDone, setupStep=$setupStep, debugBuild=$debugBuild)"
   }
 }
 
@@ -1806,6 +1818,9 @@ interface CoreHostApi {
   suspend fun retryFile(id: Long)
   suspend fun getSettings(): AppSettings
   suspend fun setAllowMobileData(on: Boolean)
+  suspend fun setGroupByDay(on: Boolean)
+  suspend fun setDocumentsTopic(topicId: Long?)
+  suspend fun createDocumentsTopic(): Long
   suspend fun setDelayOptions(minutes: List<Long>)
   suspend fun setDefaultRetention(days: Long)
   suspend fun setSetupStep(step: String)
@@ -2345,6 +2360,63 @@ interface CoreHostApi {
               val wrapped: List<Any?> = try {
                 api.setAllowMobileData(onArg)
                 listOf(null)
+              } catch (exception: Throwable) {
+                CoreApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.telebackup.CoreHostApi.setGroupByDay$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val onArg = args[0] as Boolean
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.setGroupByDay(onArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                CoreApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.telebackup.CoreHostApi.setDocumentsTopic$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val topicIdArg = args[0] as Long?
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.setDocumentsTopic(topicIdArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                CoreApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.telebackup.CoreHostApi.createDocumentsTopic$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.createDocumentsTopic())
               } catch (exception: Throwable) {
                 CoreApiPigeonUtils.wrapError(exception)
               }

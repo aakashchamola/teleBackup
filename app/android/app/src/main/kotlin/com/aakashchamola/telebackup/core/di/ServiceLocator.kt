@@ -63,7 +63,8 @@ class ServiceLocator private constructor(val context: Context) {
     val scheduler: WorkScheduler by lazy { WorkScheduler(context, settings) }
 
     val mediaSource by lazy { AndroidMediaSource(context) }
-    val scanner: Scanner by lazy { Scanner(mediaSource, fileStore, settings, events, clock) }
+    val documentClassifier by lazy { com.aakashchamola.telebackup.core.scan.AndroidDocumentClassifier() }
+    val scanner: Scanner by lazy { Scanner(mediaSource, fileStore, settings, events, clock, documents = documentClassifier) }
     val rules: RuleRepository by lazy { RuleRepository(ruleStore, fileStore, settings, events, clock) }
     val control: ControlState by lazy { ControlState(settings, events, clock, scheduler) }
     val reviews: Reviews by lazy { Reviews(ruleStore, fileStore, reviewStore, events, clock) }

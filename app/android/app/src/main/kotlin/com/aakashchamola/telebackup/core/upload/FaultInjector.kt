@@ -15,6 +15,11 @@ object FaultInjector {
 }
 
 class FaultySender(private val inner: TelegramSender) : TelegramSender {
+    override suspend fun sendAlbum(jobs: List<SendJob>, progress: (Long, Long) -> Unit): com.aakashchamola.telebackup.core.telegram.AlbumResult {
+        FaultInjector.armed() ?: return inner.sendAlbum(jobs, progress)
+        return com.aakashchamola.telebackup.core.telegram.AlbumResult.Unsupported   // an armed fault is spent by the single sends that follow
+    }
+
     override suspend fun send(job: SendJob, progress: (Long, Long) -> Unit): SendResult {
         val fault = FaultInjector.take() ?: return inner.send(job, progress)
         return SendResult.Failed(

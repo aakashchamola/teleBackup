@@ -109,6 +109,28 @@ class FakeCore extends CoreHostApi {
   // ----- status and controls -----
 
   @override
+  Future<void> setGroupByDay(bool on) async {
+    _call('setGroupByDay:$on');
+    settings.groupByDay = on;
+  }
+
+  @override
+  Future<void> setDocumentsTopic(int? topicId) async {
+    _call('setDocumentsTopic:$topicId');
+    settings.documentsTopicId = topicId;
+  }
+
+  @override
+  Future<int> createDocumentsTopic() async {
+    _call('createDocumentsTopic');
+    final existing = topics.where((t) => t.name == 'Documents').firstOrNull;
+    final id = existing?.threadId ?? 40 + topics.length;
+    if (existing == null) topics = [...topics, Topic(threadId: id, name: 'Documents', missing: false, madeByApp: true)];
+    settings.documentsTopicId = id;
+    return id;
+  }
+
+  @override
   Future<Status> getStatus() async {
     _call('getStatus');
     return status;

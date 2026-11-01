@@ -17,6 +17,12 @@ import '../../ui/widgets/widgets.dart';
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
+  String _documentsTopicName(WidgetRef ref, AppSettings s) {
+    final id = s.documentsTopicId;
+    if (id == null) return S.documentsTopicNone;
+    return (ref.watch(topicsProvider).value ?? const <Topic>[]).where((t) => t.threadId == id).map((t) => t.name).firstOrNull ?? 'Topic $id';
+  }
+
   Widget _head(BuildContext c, String t) => Padding(padding: const EdgeInsets.fromLTRB(16, 20, 16, 4), child: Text(t, style: Theme.of(c).textTheme.titleSmall?.copyWith(color: Theme.of(c).colorScheme.primary)));
 
   @override
@@ -39,6 +45,28 @@ class SettingsScreen extends ConsumerWidget {
               if (!context.mounted) return;
               await ref.attempt(context, (c) => c.setAllowMobileData(v));
               ref.invalidate(settingsProvider);
+            },
+          ),
+          _head(context, S.sending),
+          SwitchListTile(
+            key: const Key('group-by-day'),
+            title: const Text(S.groupByDay),
+            subtitle: const Text(S.groupByDayHelp),
+            value: s.groupByDay,
+            onChanged: (v) async {
+              await ref.attempt(context, (c) => c.setGroupByDay(v));
+              ref.invalidate(settingsProvider);
+            },
+          ),
+          ListTile(
+            key: const Key('documents-topic'),
+            title: const Text(S.documentsTopic),
+            subtitle: Text(_documentsTopicName(ref, s)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await showDialog<void>(context: context, builder: (c) => _DocumentsTopicDialog(current: s.documentsTopicId));
+              ref.invalidate(settingsProvider);
+              ref.invalidate(topicsProvider);
             },
           ),
           _head(context, S.pauseButtons),
@@ -528,4 +556,44 @@ class _DevState extends ConsumerState<DevScreen> {
           for (final l in _log) Padding(padding: const EdgeInsets.only(bottom: 8), child: SelectableText(l)),
         ]),
       );
+}
+
+// Choose where photos of documents go: an existing topic, a new one called Documents, or nowhere.
+class _DocumentsTopicDialog extends ConsumerWidget {
+  const _DocumentsTopicDialog({required this.current});
+  final int? current;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final topics = ref.watch(topicsProvider).value ?? const <Topic>[];
+    Future<void> done(Future<void> Function(CoreHostApi c) f) async {
+      await ref.attempt(context, f);
+      if (context.mounted) Navigator.of(context).pop();
+    }
+
+    return SimpleDialog(
+      title: const Text(S.documentsTopic),
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(24, 0, 24, 8), child: Text(S.documentsTopicHelp, style: Theme.of(context).textTheme.bodySmall)),
+        SimpleDialogOption(
+          key: const Key('documents-topic-make'),
+          onPressed: () => done((c) async { await c.createDocumentsTopic(); }),
+          child: const Text(S.documentsTopicMake),
+        ),
+        RadioGroup<int>(
+          groupValue: current,
+          onChanged: (v) { if (v != null) done((c) => c.setDocumentsTopic(v)); },
+          child: Column(children: [
+            for (final t in topics.where((t) => !t.missing)) RadioListTile<int>(value: t.threadId, title: Text(t.name)),
+          ]),
+        ),
+        if (current != null)
+          SimpleDialogOption(
+            key: const Key('documents-topic-off'),
+            onPressed: () => done((c) => c.setDocumentsTopic(null)),
+            child: const Text(S.documentsTopicOff),
+          ),
+      ],
+    );
+  }
 }

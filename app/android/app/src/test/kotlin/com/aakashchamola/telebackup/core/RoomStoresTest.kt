@@ -96,10 +96,10 @@ class RoomStoresTest {
 
     // ---------------------------------------------------------------- the queue query
 
-    @Test fun queueIsNewestFirstAndSkipsWhatItMust() {
+    @Test fun queueIsOldestFirstAndSkipsWhatItMust() {
         val r = rule()
         files.insertAll(listOf(file(r, 1, taken = 100), file(r, 2, taken = 300), file(r, 3, taken = 200)))
-        assertThat(files.nextInQueue(now, true, true, emptySet())!!.displayName).isEqualTo("f2.jpg")
+        assertThat(files.nextInQueue(now, true, true, emptySet())!!.displayName).isEqualTo("f1.jpg")
         files.apply(files.nextInQueue(now, true, true, emptySet())!!.id, FileEvent.StartUpload, now)
         assertThat(files.nextInQueue(now, true, true, emptySet())!!.displayName).isEqualTo("f3.jpg")
     }
@@ -290,7 +290,7 @@ class RoomStoresTest {
         assertThat(out.reason).isEqualTo(StopReason.QUEUE_EMPTY)
         assertThat(out.filesDone).isEqualTo(5)
         assertThat(files.page(null, null, null, 100).all { it.state == FileState.VERIFIED }).isTrue()
-        assertThat(bot.jobs.map { it.displayName }).containsExactly("IMG_0.jpg", "IMG_1.jpg", "IMG_2.jpg", "IMG_3.jpg", "IMG_4.jpg").inOrder()
+        assertThat(bot.jobs.map { it.displayName }).containsExactly("IMG_4.jpg", "IMG_3.jpg", "IMG_2.jpg", "IMG_1.jpg", "IMG_0.jpg").inOrder()
 
         // a week later the first delete is a review, not a delete
         clock.advance(8 * Fx.DAY)

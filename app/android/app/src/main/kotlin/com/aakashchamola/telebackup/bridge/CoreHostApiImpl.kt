@@ -221,7 +221,29 @@ class CoreHostApiImpl(private val context: Context) : CoreHostApi {
 
     override suspend fun getSettings(): AppSettings = io {
         val s = sl.settings
-        AppSettings(s.allowMobileData, s.delayOptionsMinutes.map { it.toLong() }, s.defaultRetentionDays.toLong(), s.setupDone, s.setupStep, sl.debugBuild)
+        AppSettings(
+            allowMobileData = s.allowMobileData, delayOptionsMinutes = s.delayOptionsMinutes.map { it.toLong() },
+            defaultRetentionDays = s.defaultRetentionDays.toLong(), setupDone = s.setupDone, setupStep = s.setupStep, debugBuild = sl.debugBuild,
+            groupByDay = s.groupByDay, documentsTopicId = s.documentsTopicId,
+        )
+    }
+
+    override suspend fun setGroupByDay(on: Boolean) = io { sl.settings.groupByDay = on }
+
+    override suspend fun setDocumentsTopic(topicId: Long?) = io { sl.settings.documentsTopicId = topicId }
+
+    override suspend fun createDocumentsTopic(): Long = io {
+        if (sl.secrets.get(SecretNames.BOT_TOKEN) == null || sl.settings.chatId == null)
+            throw FlutterError("NOT_SET_UP", "Topics can be made once Telegram is connected.")
+        // one Documents topic only: use the one this app made before if it is still there
+        val chat = sl.settings.chatId!!
+        val known = sl.topicStore.list(chat).firstOrNull { it.name == "Documents" && !it.missing }
+        val id = known?.threadId ?: when (val t = sl.botSetup.createTopic("Documents")) {
+            is ApiResult.Ok -> t.value.threadId
+            is ApiResult.Err -> tg(t.error)
+        }
+        sl.settings.documentsTopicId = id
+        id
     }
 
     override suspend fun setAllowMobileData(on: Boolean) = io { sl.settings.allowMobileData = on; sl.scheduler.reenqueueUploadWithNewConstraint(); Unit }

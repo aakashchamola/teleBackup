@@ -57,8 +57,9 @@ class UploadLoop(
     private val bot: TelegramSender?,
     private val account: TelegramSender?,
     private val progress: ProgressSink = object : ProgressSink {},
+    private val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) {
-    companion object { const val SHORT_FLOOD_SECONDS = 120L }
+    companion object { const val SHORT_FLOOD_SECONDS = 120L; const val ALBUM_MAX = 10 }
 
     private var botStopped = false
     private var accountStopped = false
@@ -93,8 +94,11 @@ class UploadLoop(
                 files.apply(file.id, FileEvent.Ignore, now)
                 continue
             }
-            when (val r = sendOne(file, rule, done, total0.count, isStopped)) {
-                SendStep.Done -> { done++; networkFailsInARow = 0; progress.fileFinished(done, total0.count) }
+            val batch = albumOf(file)
+            val outcome = if (batch.size >= 2) sendBatch(batch, rule, done, total0.count, isStopped)
+            else sendOne(file, rule, done, total0.count, isStopped).let { BatchOutcome(it, if (it == SendStep.Done) 1 else 0) }
+            when (outcome.step) {
+                SendStep.Done -> { done += outcome.sent; networkFailsInARow = 0; progress.fileFinished(done, total0.count) }
                 SendStep.Retry -> Unit
                 SendStep.NetworkFail -> {
                     networkFailsInARow++
@@ -133,27 +137,28 @@ class UploadLoop(
 
     private enum class SendStep { Done, Retry, NetworkFail }
 
-    private suspend fun sendOne(file0: FileEntity, rule: RuleEntity, doneSoFar: Int, total: Int, isStopped: () -> Boolean): SendStep {
+    /** A file that passed the checks, is marked UPLOADING, and has its hash and send job. */
+    private class Prep(val file: FileEntity, val job: SendJob, val hash: String)
+
+    /** The checks before any send. Null means "nothing to send for this file now" (it vanished or changed; the row is already updated). */
+    private suspend fun prepare(file0: FileEntity, rule: RuleEntity, doneSoFar: Int, total: Int, announce: Boolean): Prep? {
         var file = file0
         val now0 = clock.now()
         val facts = disk.inspect(file.path)
         if (!facts.exists) {
             files.apply(file.id, FileEvent.Vanished, now0)
             events.add(EventKind.GONE, "${file.displayName} was removed from the phone", rule.id, file.id)
-            return SendStep.Retry
+            return null
         }
         if (facts.sizeBytes != file.sizeBytes || facts.modifiedAt != file.modifiedAt) {
             // edited since the scan: refresh the row; the next pass uploads the new version
             files.updateDetails(file.copy(sizeBytes = facts.sizeBytes, modifiedAt = facts.modifiedAt, sha256 = null))
-            return SendStep.Retry
+            return null
         }
-        val route = file.route ?: Route.BOT
-        pacer.awaitSlot(route)
-
         // a failed file whose waiting time is over goes back to the queue first
         if (file.state == FileState.FAILED) file = files.apply(file.id, FileEvent.BackoffDue, clock.now())
         file = files.apply(file.id, FileEvent.StartUpload, clock.now())
-        progress.fileStarted(file.displayName, file.sizeBytes, doneSoFar, total)
+        if (announce) progress.fileStarted(file.displayName, file.sizeBytes, doneSoFar, total)
 
         val hash = try {
             file.sha256 ?: hasher.sha256(file.path)
@@ -162,17 +167,29 @@ class UploadLoop(
             throw e
         } catch (e: java.io.IOException) {
             files.apply(file.id, FileEvent.Vanished, clock.now())
-            return SendStep.Retry
+            return null
         }
         if (file.sha256 == null) files.updateDetails(file.copy(sha256 = hash))
 
-        val chatId = settings.chatId!!
         val job = SendJob(
-            chatId = chatId, threadId = rule.topicId, path = file.path, displayName = file.displayName,
+            chatId = settings.chatId!!, threadId = file.topicId ?: rule.topicId, path = file.path, displayName = file.displayName,
             mimeType = file.mimeType, sendAs = file.sendAs ?: SendAs.DOCUMENT,
             caption = CaptionBuilder.build(file.displayName, file.takenAt, rule.name, hash),
             sizeBytes = file.sizeBytes, width = file.width, height = file.height, durationMs = file.durationMs,
         )
+        return Prep(file, job, hash)
+    }
+
+    private suspend fun sendOne(file0: FileEntity, rule: RuleEntity, doneSoFar: Int, total: Int, isStopped: () -> Boolean): SendStep {
+        val route = file0.route ?: Route.BOT
+        pacer.awaitSlot(route)
+        val prep = prepare(file0, rule, doneSoFar, total, announce = true) ?: return SendStep.Retry
+        return sendPrepared(prep, rule, route, isStopped)
+    }
+
+    /** Sends one prepared file by itself and records what Telegram answered. */
+    private suspend fun sendPrepared(prep: Prep, rule: RuleEntity, route: Route, isStopped: () -> Boolean): SendStep {
+        val file = prep.file; val job = prep.job; val hash = prep.hash
         val sender = if (route == Route.ACCOUNT) account else bot
         if (sender == null) {
             files.apply(file.id, FileEvent.NetworkStop, clock.now())
@@ -199,6 +216,97 @@ class UploadLoop(
         }
     }
 
+    // ----- albums: the photos and videos of one day go together (up to 10 at a time) -----
+
+    /** [first] and the other queued files of the same rule, day, topic and kind that fit in one album. Size 1 means "send it alone". */
+    private fun albumOf(first: FileEntity): List<FileEntity> {
+        if (!settings.groupByDay || bot == null || botStopped) return listOf(first)
+        if ((first.route ?: Route.BOT) != Route.BOT || first.state != FileState.QUEUED) return listOf(first)
+        val documents = when (first.sendAs) {
+            SendAs.PHOTO, SendAs.VIDEO -> false
+            SendAs.DOCUMENT -> true
+            null -> return listOf(first)
+        }
+        val day = java.time.Instant.ofEpochMilli(first.takenAt).atZone(zone).toLocalDate()
+        val from = day.atStartOfDay(zone).toInstant().toEpochMilli()
+        val to = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return listOf(first) + files.queuedSameDay(first.ruleId, documents, from, to, first.topicId, first.id, clock.now(), ALBUM_MAX - 1)
+    }
+
+    private class BatchOutcome(val step: SendStep, val sent: Int)
+
+    private suspend fun sendBatch(batch: List<FileEntity>, rule: RuleEntity, doneSoFar: Int, total: Int, isStopped: () -> Boolean): BatchOutcome {
+        pacer.awaitSlot(Route.BOT)
+        val preps = ArrayList<Prep>()
+        suspend fun revert(list: List<Prep>) = withContext(NonCancellable) { list.forEach { files.apply(it.file.id, FileEvent.NetworkStop, clock.now()) } }
+        try {
+            for ((i, f) in batch.withIndex()) prepare(f, rule, doneSoFar, total, announce = false)?.let { preps += it }
+        } catch (e: CancellationException) { revert(preps); throw e }
+        if (preps.isEmpty()) return BatchOutcome(SendStep.Retry, 0)
+        if (preps.size == 1) {
+            progress.fileStarted(preps[0].file.displayName, preps[0].file.sizeBytes, doneSoFar, total)
+            val s = sendPrepared(preps[0], rule, Route.BOT, isStopped)
+            return BatchOutcome(s, if (s == SendStep.Done) 1 else 0)
+        }
+        val sender = bot
+        if (sender == null) { revert(preps); botStopped = true; return BatchOutcome(SendStep.Retry, 0) }
+
+        progress.fileStarted("${preps.size} files of one day", preps.sumOf { it.file.sizeBytes }, doneSoFar, total)
+        val result = try {
+            sender.sendAlbum(preps.map { it.job }) { sent, tot -> progress.fileProgress("${preps.size} files of one day", sent, tot) }
+        } catch (e: CancellationException) { revert(preps); throw e }
+
+        suspend fun oneByOne(): BatchOutcome {
+            var sent = 0
+            var last = SendStep.Retry
+            for ((i, p) in preps.withIndex()) {
+                // the same stops as between single files: a pause, a dead token, a deleted topic, no network
+                if (isStopped() || botStopped || rule.id in pausedRules || last == SendStep.NetworkFail) {
+                    revert(preps.drop(i))
+                    break
+                }
+                last = sendPrepared(p, rule, Route.BOT, isStopped)
+                if (last == SendStep.Done) sent++
+            }
+            return BatchOutcome(if (sent > 0) SendStep.Done else if (last == SendStep.NetworkFail) SendStep.NetworkFail else SendStep.Retry, sent)
+        }
+
+        return when (result) {
+            AlbumResult.Unsupported -> oneByOne()
+            is AlbumResult.Sent -> {
+                if (result.messages.size != preps.size) {
+                    // Telegram answered with another number of messages than files: do not guess which is which.
+                    // The album may well be posted already, so each file takes a normal failed attempt (backoff, then skipped)
+                    // instead of going straight back to the queue, which would post it again and again.
+                    val err = TgError.BadRequest("the album answer did not match its files")
+                    preps.forEach { p ->
+                        val after = files.apply(p.file.id, FileEvent.TgFailed(err), clock.now(), settings.maxAttempts, Math.random())
+                        events.add(EventKind.RETRIED, "${p.file.displayName}: will check again (${err.userMessage})", rule.id, p.file.id)
+                        if (after.state == FileState.SKIPPED) events.add(EventKind.SKIPPED, "${p.file.displayName} skipped: ${err.userMessage}", rule.id, p.file.id)
+                    }
+                    return BatchOutcome(SendStep.Retry, 0)
+                }
+                settings.botProblem = false
+                preps.zip(result.messages).forEach { (p, msg) ->
+                    val uploaded = files.apply(p.file.id, FileEvent.Sent(msg, p.hash), clock.now())
+                    events.add(EventKind.UPLOADED, "${p.file.displayName} uploaded", rule.id, p.file.id, p.file.sizeBytes)
+                    checkAndVerify(uploaded, rule, msg, p.job)
+                }
+                BatchOutcome(SendStep.Done, preps.size)
+            }
+            is AlbumResult.Failed -> when (result.error) {
+                TgError.Network -> { revert(preps); BatchOutcome(if (isStopped()) SendStep.Retry else SendStep.NetworkFail, 0) }
+                is TgError.FloodWait, TgError.BadToken, is TgError.Forbidden, TgError.TopicMissing, is TgError.ChatMigrated, TgError.AccountLoggedOut -> {
+                    // these are about the run, not about one file: the first file takes the blame, the rest wait their turn
+                    revert(preps.drop(1))
+                    BatchOutcome(handleFailure(preps[0].file, rule, result.error, isStopped), 0)
+                }
+                // one bad file (or Telegram having a bad moment) must not hold back nine good ones: send them one by one
+                else -> oneByOne()
+            }
+        }
+    }
+
     private fun checkAndVerify(uploaded: FileEntity, rule: RuleEntity, sent: SentMessage? = null, job0: SendJob? = null) {
         val now = clock.now()
         val message = sent ?: SentMessage(
@@ -206,7 +314,7 @@ class UploadLoop(
             uploaded.tgSize, uploaded.tgWidth, uploaded.tgHeight, uploaded.tgDurationMs, uploaded.sendAs ?: SendAs.DOCUMENT,
         )
         val job = job0 ?: SendJob(
-            uploaded.tgChatId ?: 0, rule.topicId, uploaded.path, uploaded.displayName, uploaded.mimeType,
+            uploaded.tgChatId ?: 0, uploaded.topicId ?: rule.topicId, uploaded.path, uploaded.displayName, uploaded.mimeType,
             uploaded.sendAs ?: SendAs.DOCUMENT, "", uploaded.sizeBytes, uploaded.width, uploaded.height, uploaded.durationMs,
         )
         when (val check = Verifier.checkReply(job, message)) {
@@ -240,7 +348,7 @@ class UploadLoop(
             TgError.Network -> return if (isStopped()) SendStep.Retry else SendStep.NetworkFail
             TgError.TopicMissing -> {
                 pausedRules += rule.id
-                rule.topicId?.let { topics.markMissing(it, true) }
+                (file.topicId ?: rule.topicId)?.let { topics.markMissing(it, true) }
                 events.add(EventKind.TOPIC_MISSING, "The topic for ${rule.name} was deleted in Telegram", rule.id)
             }
             TgError.BadToken -> {

@@ -37,7 +37,7 @@ The full list of states (including `failed`, `skipped`, `gone` and `changed`) an
 - Runs from a daily periodic job (WorkManager), plus once when a rule is added.
 - Queries MediaStore by folder (bucket or relative path) and by type (image, video). Falls back to listing the folder for places MediaStore does not index.
 - Skips files newer than ~2 minutes (still being written) and anything before the rule's start date.
-- Backlog is queued **newest first**.
+- Backlog is queued **oldest first** (owner's choice, 2026-11-02).
 
 ## Upload
 - Sequential, one file at a time (maybe 2 later). Paced to stay under Telegram limits: a bot gets about 20 messages per minute into one group, so the pace is capped at ~15/min per group.

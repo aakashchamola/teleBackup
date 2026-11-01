@@ -49,8 +49,19 @@ sealed class SendResult {
     data class Failed(val error: TgError) : SendResult()
 }
 
+/** Telegram answers an album as one: every file went, or none did. [messages] are in the order the jobs were given. */
+sealed class AlbumResult {
+    data class Sent(val messages: List<SentMessage>) : AlbumResult()
+    data class Failed(val error: TgError) : AlbumResult()
+    /** This sender cannot send albums; the caller sends the files one by one. */
+    object Unsupported : AlbumResult()
+}
+
 interface TelegramSender {
     suspend fun send(job: SendJob, progress: (sent: Long, total: Long) -> Unit): SendResult
+
+    /** 2 to 10 photos or videos shown together. Documents are not mixed with photos (Telegram's rule). */
+    suspend fun sendAlbum(jobs: List<SendJob>, progress: (sent: Long, total: Long) -> Unit): AlbumResult = AlbumResult.Unsupported
 }
 
 /** Bot API message ids and TDLib message ids differ by 20 bits for supergroup messages. */

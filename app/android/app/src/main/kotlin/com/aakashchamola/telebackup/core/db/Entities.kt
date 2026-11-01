@@ -1,5 +1,6 @@
 package com.aakashchamola.telebackup.core.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -24,6 +25,8 @@ data class RuleEntity(
     val deletedAt: Long? = null,
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
+    /** Photos of documents and paper in this folder go to the Documents topic instead of the rule's topic. Off unless chosen. */
+    @ColumnInfo(defaultValue = "0") val sortDocuments: Boolean = false,
 )
 
 @Entity(tableName = "topics")
@@ -86,6 +89,8 @@ data class FileEntity(
     val reviewId: Long? = null,
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
+    /** Topic for this file when it differs from the rule's (photos of documents go to the Documents topic). */
+    val topicId: Long? = null,
 )
 
 @Entity(tableName = "reviews", indices = [Index("ruleId")])

@@ -18,7 +18,7 @@ Three layers. The rule: anything that could cause a wrong delete has a test that
 | Only one door | `DeleteCallsOnlyInFileDeleterTest` | Walks `src/main/kotlin`, fails if `.delete(`, `deleteRecursively`, `createDeleteRequest`, `Files.delete`, or `contentResolver.delete` appears in any file other than `core/clean/FileDeleter.kt`. (A string check; simple on purpose.) |
 | State writes | `StateWritesOnlyViaMachineTest` | Same idea: `state =` / `SET state` only in `FileRepository` and `FileStateMachine`. |
 | Rule validation | `RuleValidatorTest` | Name rules, retention bounds, delete invariant (`UPLOAD_AND_DELETE` needs the warning), import forces upload-only. |
-| Scanner | `ScannerTest` (with `FakeMediaSource`) | Newest first; start modes (today, since date, everything); skips files < 2 min old; identity dedupe; changed file -> `CHANGED` + new row; vanished -> `GONE`; subfolders on/off; photos/videos filter; MediaStore-empty fallback is used; batches of 500. |
+| Scanner | `ScannerTest` (with `FakeMediaSource`) | Oldest first; start modes (today, since date, everything); skips files < 2 min old; identity dedupe; changed file -> `CHANGED` + new row; vanished -> `GONE`; subfolders on/off; photos/videos filter; MediaStore-empty fallback is used; batches of 500. |
 | Router | `RouterTest` | 49.99 MB -> bot, 50 MB -> account; photo > 10 MB as media -> document; HEIC as media -> document; > 2 GB -> skipped; original -> document. |
 | Pacer | `PacerTest` (fake clock) | <= 15 bot sends per rolling minute, burst 3; flood-wait blocks all routes for N s. |
 | Caption | `CaptionBuilderTest` | Layout; 1024-char cap with a 300-char unicode name; no Markdown parsing issues with `_*[]`. |

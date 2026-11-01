@@ -16,14 +16,14 @@ class UploadLoopTest {
         loop().run { calls++ >= stopAfter }
     }
 
-    @Test fun uploadsEverythingNewestFirstAndVerifies() {
+    @Test fun uploadsEverythingOldestFirstAndVerifies() {
         val w = world()
         val r = w.rule(mode = RuleMode.UPLOAD_AND_DELETE)
         w.scanWith(r, w.photo(1, ageMs = 30 * Fx.DAY), w.photo(2, ageMs = 1 * Fx.DAY), w.photo(3, ageMs = 10 * Fx.DAY))
         val out = w.run()
         assertThat(out.reason).isEqualTo(StopReason.QUEUE_EMPTY)
         assertThat(out.filesDone).isEqualTo(3)
-        assertThat((w.bot as FakeSender).jobs.map { it.displayName }).containsExactly("IMG_2.jpg", "IMG_3.jpg", "IMG_1.jpg").inOrder()
+        assertThat((w.bot as FakeSender).jobs.map { it.displayName }).containsExactly("IMG_1.jpg", "IMG_3.jpg", "IMG_2.jpg").inOrder()
         assertThat(w.all().all { it.state == FileState.VERIFIED }).isTrue()
         assertThat(w.all().first().deleteAfter!!).isAtLeast(w.clock.now() + 7 * Fx.DAY)
         assertThat(w.all().first().sha256).isNotNull()

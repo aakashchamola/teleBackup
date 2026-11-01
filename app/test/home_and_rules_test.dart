@@ -179,7 +179,7 @@ void main() {
       expect(find.byKey(const Key('rule-name')), findsOneWidget);
       expect((t.widget(find.byKey(const Key('rule-name'))) as TextField).controller!.text, isNotEmpty);
       await t.scrollUntilVisible(find.byKey(const Key('rule-preview')), 250, scrollable: find.byType(Scrollable).first);
-      expect(find.text('This adds 12 files (3.4 MB), newest first.'), findsOneWidget);
+      expect(find.text('This adds 12 files (3.4 MB), oldest first.'), findsOneWidget);
       await t.scrollUntilVisible(find.byKey(const Key('rule-topic')), -250, scrollable: find.byType(Scrollable).first);
       await t.tap(find.byKey(const Key('rule-topic')));
       await t.pumpAndSettle();

@@ -36,9 +36,11 @@ interface FileStore {
     fun updateDetails(file: FileEntity)
     fun apply(id: Long, event: FileEvent, now: Long, maxAttempts: Int = FileStateMachine.DEFAULT_MAX_ATTEMPTS, jitter01: Double = 0.0): FileEntity
 
-    /** Next file to upload, newest first, for rules that are on, on routes that can be used now. */
+    /** Next file to upload, oldest first, for rules that are on, on routes that can be used now. */
     fun nextInQueue(now: Long, allowBot: Boolean, allowAccount: Boolean, excludeRuleIds: Set<Long>): FileEntity?
     fun queueCount(now: Long, allowBot: Boolean, allowAccount: Boolean): QueueCount
+    /** Other queued bot files of one rule taken in [from, to) with the same kind (photo or video together, or documents) and topic, oldest first. */
+    fun queuedSameDay(ruleId: Long, documents: Boolean, from: Long, to: Long, topicId: Long?, exceptId: Long, now: Long, limit: Int): List<FileEntity>
     fun waitingAccountCount(): Int
     fun earliestRetryAt(): Long?
     fun interrupted(): List<FileEntity>

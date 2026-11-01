@@ -48,7 +48,7 @@ class World(botSender: TelegramSender? = null, accountSender: TelegramSender? = 
     init { settings.chatId = -1001L }
 
     fun loop(progress: ProgressSink = object : ProgressSink {}) =
-        UploadLoop(files, rules, topics, events, settings, clock, pacer, hasher, disk, bot, account, progress)
+        UploadLoop(files, rules, topics, events, settings, clock, pacer, hasher, disk, bot, account, progress, ZoneId.of("UTC"))
 
     fun cleaner(allowAccountVerifier: Boolean = true) = Cleaner(
         rules, files, reviews, events, settings, clock, disk, deleter, if (allowAccountVerifier) verifier else null, null,
@@ -58,12 +58,13 @@ class World(botSender: TelegramSender? = null, accountSender: TelegramSender? = 
     fun rule(
         name: String = "Test", mode: RuleMode = RuleMode.UPLOAD_ONLY, start: StartMode = StartMode.EVERYTHING,
         topic: Long? = 5, uploadAs: UploadAs = UploadAs.ORIGINAL, types: MediaTypes = MediaTypes.BOTH,
-        sub: Boolean = false, dryRun: Boolean = true, days: Int = 7,
+        sub: Boolean = false, dryRun: Boolean = true, days: Int = 7, sortDocuments: Boolean = false,
     ): RuleEntity = repo.save(
         RuleEntity(
             name = name, folderPath = "Pictures/teleBackupTest/", mediaTypes = types, topicId = topic, uploadAs = uploadAs,
             mode = mode, retentionDays = days, startMode = start, includeSubfolders = sub, dryRun = dryRun,
             deleteWarningAcceptedAt = if (mode == RuleMode.UPLOAD_AND_DELETE) clock.now() else null,
+            sortDocuments = sortDocuments,
         ),
     )
 

@@ -9,13 +9,13 @@ import java.time.ZoneId
 class ScannerTest {
     private val w = World()
 
-    @Test fun queuesNewestFirstAndDecidesRoute() {
+    @Test fun queuesOldestFirstAndDecidesRoute() {
         val r = w.rule(uploadAs = UploadAs.MEDIA)
         w.media.add(w.photo(1, ageMs = 30 * Fx.DAY)); w.media.add(w.photo(2, ageMs = 1 * Fx.DAY)); w.media.add(w.video(3, ageMs = 5 * Fx.DAY))
         val res = w.scanner.scan(r)
         assertThat(res.newFiles).isEqualTo(3)
         val inInsertOrder = w.all().sortedBy { it.id }
-        assertThat(inInsertOrder.map { it.displayName }).containsExactly("IMG_2.jpg", "VID_3.mp4", "IMG_1.jpg").inOrder()
+        assertThat(inInsertOrder.map { it.displayName }).containsExactly("IMG_1.jpg", "VID_3.mp4", "IMG_2.jpg").inOrder()
         assertThat(w.all().first { it.displayName == "VID_3.mp4" }.route).isEqualTo(Route.ACCOUNT)
         assertThat(w.all().first { it.displayName == "IMG_1.jpg" }.route).isEqualTo(Route.BOT)
         assertThat(w.all().all { it.state == FileState.QUEUED }).isTrue()

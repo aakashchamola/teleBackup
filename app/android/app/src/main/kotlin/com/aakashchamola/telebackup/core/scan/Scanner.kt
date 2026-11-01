@@ -49,7 +49,12 @@ data class ScanResult(
 
 data class BacklogPreview(val count: Int, val bytes: Long, val newestAt: Long?, val oldestAt: Long?)
 
-/** Finds files for a rule and queues them, newest first (docs/HOW_IT_WORKS.md section 4). */
+/** Says whether a photo shows a document or paper (a bill, a letter, an ID card, a page of notes). */
+fun interface DocumentClassifier {
+    fun isDocument(path: String): Boolean
+}
+
+/** Finds files for a rule and queues them, oldest first (docs/HOW_IT_WORKS.md section 4). */
 class Scanner(
     private val source: MediaSource,
     private val files: FileStore,
@@ -57,6 +62,7 @@ class Scanner(
     private val events: EventLog,
     private val clock: Clock,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val documents: DocumentClassifier? = null,
 ) {
     companion object {
         const val MIN_AGE_MS = 2 * Time.MINUTE
@@ -93,9 +99,9 @@ class Scanner(
         val seen = HashSet<String>()
         val pending = ArrayList<FileEntity>()
 
-        // newest first, so a big backlog starts with recent files
+        // oldest first: a folder is backed up from its beginning, in the order the photos were taken
         val items = source.list(rule.folderPath, rule.includeSubfolders, rule.mediaTypes)
-            .sortedByDescending { takenAt(it) }
+            .sortedBy { takenAt(it) }
 
         for (i in items) {
             seen += i.path
@@ -166,8 +172,14 @@ class Scanner(
             state = if (go != null) FileState.QUEUED else FileState.SKIPPED,
             route = go?.route, sendAs = go?.sendAs, lastError = (d as? RouteDecision.Skip)?.reason,
             queuedAt = now, createdAt = now, updatedAt = now,
+            topicId = if (go != null && documentTopicFor(rule, i)) settings.documentsTopicId else null,
         )
     }
+
+    /** Only photos, only in folders where the rule asks for it, and only when a Documents topic has been chosen. */
+    private fun documentTopicFor(rule: RuleEntity, i: MediaItem): Boolean =
+        rule.sortDocuments && settings.documentsTopicId != null && i.kind == FileKind.PHOTO &&
+            (documents?.let { c -> runCatching { c.isDocument(i.path) }.getOrDefault(false) } ?: false)
 }
 
 /** Date from a file name such as IMG-20261101-WA0001, IMG_20261101_093012, Screenshot_20261101-093012. */

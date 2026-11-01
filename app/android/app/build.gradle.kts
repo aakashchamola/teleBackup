@@ -100,6 +100,9 @@ dependencies {
     // SHA-256 of core-0.1.1.aar is 1ec6d6c6c83b655349d8a91182145cdd5400392246136ad79432253ad6004106 (docs/STATUS.md).
     // Before a family release this should be swapped for a build made from tdlib/td itself (same org.drinkless.tdlib API).
     implementation("io.github.tdlib-android:core:0.1.1")
+    // Sorting photos of documents into their own topic: Google's text reader, model bundled in the app, works offline.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
 
     testImplementation("junit:junit:4.13.2")

@@ -39,7 +39,7 @@ interface FileDao {
              AND ((f.state = 'QUEUED' AND (f.nextAttemptAt IS NULL OR f.nextAttemptAt <= :now))
                OR (f.state = 'FAILED' AND f.nextAttemptAt <= :now))
              AND ((f.route = 'ACCOUNT' AND :allowAccount = 1) OR ((f.route = 'BOT' OR f.route IS NULL) AND :allowBot = 1))
-           ORDER BY f.takenAt DESC, f.id DESC LIMIT 1""",
+           ORDER BY f.takenAt ASC, f.id ASC LIMIT 1""",
     )
     fun nextInQueue(now: Long, allowBot: Boolean, allowAccount: Boolean, exclude: List<Long>): FileEntity?
 
@@ -50,6 +50,14 @@ interface FileDao {
              AND ((f.route = 'ACCOUNT' AND :allowAccount = 1) OR ((f.route = 'BOT' OR f.route IS NULL) AND :allowBot = 1))""",
     )
     fun queueCount(now: Long, allowBot: Boolean, allowAccount: Boolean): QueueCount
+
+    @Query(
+        """SELECT * FROM files WHERE ruleId = :ruleId AND state = 'QUEUED' AND (nextAttemptAt IS NULL OR nextAttemptAt <= :now)
+           AND (route = 'BOT' OR route IS NULL) AND sendAs IN (:kindA, :kindB) AND takenAt >= :from AND takenAt < :to
+           AND ((:topicId IS NULL AND topicId IS NULL) OR topicId = :topicId) AND id != :exceptId
+           ORDER BY takenAt ASC, id ASC LIMIT :limit""",
+    )
+    fun queuedSameDay(ruleId: Long, kindA: String, kindB: String, from: Long, to: Long, topicId: Long?, exceptId: Long, now: Long, limit: Int): List<FileEntity>
 
     @Query("SELECT COUNT(*) FROM files WHERE state = 'QUEUED' AND route = 'ACCOUNT'") fun waitingAccountCount(): Int
     @Query("SELECT MIN(nextAttemptAt) FROM files WHERE state IN ('QUEUED', 'FAILED') AND nextAttemptAt IS NOT NULL") fun earliestRetryAt(): Long?
