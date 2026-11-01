@@ -43,3 +43,9 @@ Newest at the end.
 - Found by tests and fixed on the way: a retry-due FAILED file was never moved back to QUEUED before upload; a short flood-wait ended the run early; button rows could overflow at large text; screens had no safe "back" when opened from a notification; a secret-store `delete()` tripped the one-door scan (now truncates).
 - Not done: anything on the phone, all of M1's questions, TDLib/account path, owner decisions D1/D2, signing key. See `docs/STATUS.md`.
 - Commit rule kept: no Claude co-author line.
+
+## 2026-11-02 (the phone arrives)
+- Phone connected (Moto G62, Android 13, 4 users: installs use `--user 0`). Bot Bot-API facts, account login, 75 MB and 1 GB account sends, Q6 re-fetch, resume after a network drop, hash speed: all measured and written in `M1_FINDINGS.md`.
+- Built and tested on the phone: TDLib account path (community AAR 1.8.67), oldest-first queue, albums per day, document sorting per rule, Documents topic, notification fixes (clear at run end, survive overlapping runs), Room migrations 2 and 3, video splitting for files over 2 GB, scratch cleanup behind the one delete door.
+- Release key made (`C:\Users\aakas\.telebackup\release.jks`, vault `TELEBACKUP_RELEASE_KEY_PASSWORD`); signed release build verified. Owner still has to back the .jks up.
+- Gallery backup started on the owner's phone (upload-only, oldest first).

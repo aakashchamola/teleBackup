@@ -35,6 +35,16 @@ Answers from `docs/phases/M1.md`. Each row: what was tried, what happened, and w
 | Background: maker settings needed | |
 | SHA-256 of 1 GB on the phone (seconds) | 3.3 s with a 1 MB buffer (random data, 1,073,741,824 bytes). |
 
+## Added after M1 (owner's requests, 2026-11-02)
+| Item | Result |
+|---|---|
+| Upload order | Oldest first (was newest first): `takenAt` ascending. |
+| Albums (`sendMediaGroup`) | Up to 10 photos/videos of one local day per request, total at most 40 MB: an album of 10 videos once got HTTP 413 (the request as a whole is limited, not each file). Documents are grouped with documents only. The answer is a list of messages in order; every one is checked on its own. A bad file or a bad moment falls back to one-by-one; a slow-down, token or topic problem blames only the first file. |
+| Document detector (text reader only) | On 519 photos in `DCIM/Camera`: 362 passed the colour test and were read; 62 flagged; by eye ~88% right (receipts, handwritten notes, certificates, forms, ID cards); misses: ~27 of 48 near-miss photos were real documents (handwriting, hand-held cards). |
+| Document detector (+ picture labeller "paper", "handwriting", "document", "receipt", "newspaper", "menu" at 0.70) | About 88 flagged; the 25 extra were nearly all real documents (bank statements, lists, forms, a certificate); "poster" was too noisy (balloons, toys) and is not used. 106-131 s for 519 photos on the Moto G62. |
+| Cutting a video over 2 GB | `MediaExtractor` + `MediaMuxer`, no re-encoding, a new part at the first video keyframe after its share of the size; a 75 MB test clip came out as 25/25/23 MB, durations 50.0/50.0/47.0 s against 147 s, every part plays and has audio. A 2.1 GB gallery video took about 90 s to cut and then went up as one album of 2 parts through the account (needs free space = file size). |
+| Rule: never delete a file that went up in parts | `DeleteGate` denies `SENT_IN_PARTS`, and such files are left out of delete candidates: the strong check sees one message, the file went in several. |
+
 ## Decisions
 | # | Decision | Answer | Decided by |
 |---|---|---|---|

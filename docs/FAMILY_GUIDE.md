@@ -23,7 +23,10 @@ The app walks you through it, one step at a time. You need the Telegram app on t
 - **Home** says what is happening and has one button for every problem.
 
 ## Finding your photos in Telegram
-Open your group. Each folder has its own **topic** (Gallery photos, Screenshots...). To find one file, search `#tb` and the check code shown on the file's page in teleBackup.
+Open your group. Each folder has its own **topic** (Gallery photos, Gallery videos, Screenshots...). Photos and videos taken on the same day arrive together as one album of up to 10. If a folder has **Put photos of documents in the Documents topic** turned on, photos of paper, bills and ID cards go to the **Documents** topic instead. A video bigger than 2 GB is cut into parts and arrives as one album of parts. To find one file, search `#tb` and the check code shown on the file's page in teleBackup.
+
+## The order
+A folder is backed up from its **oldest** file to its newest. The first night can take hours for a big gallery; it carries on by itself, over Wi-Fi.
 
 ## Deleting from the phone (off until you turn it on)
 Every rule starts as **Upload only**: nothing is deleted. After a week, if you want space back, open the rule and choose **Delete from phone after N days**. The app warns you that Telegram then holds the only copy. The first time, it shows you the files and waits for you to say **Looks right, delete**. **Settings > Stop all deletes now** turns every rule back to upload only at once.
