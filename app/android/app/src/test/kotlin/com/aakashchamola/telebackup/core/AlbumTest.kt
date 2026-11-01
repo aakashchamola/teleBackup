@@ -45,6 +45,18 @@ class AlbumTest {
         assertThat(b.albums[0].map { it.sendAs }).containsExactly(SendAs.PHOTO, SendAs.VIDEO, SendAs.PHOTO).inOrder()
     }
 
+    @Test fun anAlbumStaysUnderTheRequestSizeLimit() {
+        val b = bot(); val w = World(b)
+        val r = w.rule(uploadAs = UploadAs.MEDIA)
+        // five 15 MB photos of one day: 40 MB per album at most, so 2 + 2 + 1
+        w.scanWith(r, *(1..5).map { w.photo(it, ageMs = 3 * day - it * 60_000L, size = 15_000_000) }.toTypedArray())
+        w.run()
+        assertThat(b.albums.map { a -> a.sumOf { it.sizeBytes } }.all { it <= 40_000_000L }).isTrue()
+        assertThat(b.albums.map { it.size }).containsExactly(2, 2).inOrder()
+        assertThat(b.jobs).hasSize(1)
+        assertThat(w.all().all { it.state == FileState.VERIFIED }).isTrue()
+    }
+
     @Test fun groupingOffSendsOneByOne() {
         val b = bot(); val w = World(b)
         w.settings.groupByDay = false

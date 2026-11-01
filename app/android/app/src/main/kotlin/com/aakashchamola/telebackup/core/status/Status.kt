@@ -69,6 +69,8 @@ class RunTracker {
     @Volatile var filesTotal: Int = 0
     @Volatile var pausing: Boolean = false
 
+    /** A file started sending: the run is on, even if another run's end had set the tracker idle. */
+    fun markRunning() { if (!running) run = RunState.UPLOADING }
     fun begin(total: Int) { run = RunState.UPLOADING; filesDone = 0; filesTotal = total; pausing = false }
     fun end(timeLimit: Boolean = false) {
         run = if (timeLimit) RunState.STOPPED_TIME_LIMIT else RunState.IDLE

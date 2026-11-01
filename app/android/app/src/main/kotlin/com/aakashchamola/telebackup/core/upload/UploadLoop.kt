@@ -59,7 +59,7 @@ class UploadLoop(
     private val progress: ProgressSink = object : ProgressSink {},
     private val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) {
-    companion object { const val SHORT_FLOOD_SECONDS = 120L; const val ALBUM_MAX = 10 }
+    companion object { const val SHORT_FLOOD_SECONDS = 120L; const val ALBUM_MAX = 10; const val ALBUM_MAX_BYTES = 40_000_000L }
 
     private var botStopped = false
     private var accountStopped = false
@@ -74,6 +74,7 @@ class UploadLoop(
         recoverInterrupted()
         val accountReady = { settings.accountState == AccountValue.READY && !accountStopped && account != null }
         val total0 = files.queueCount(clock.now(), allowBot = bot != null, allowAccount = accountReady())
+        runStartedCalled = true
         progress.runStarted(total0.count, total0.bytes)
         var done = 0
         var reason = StopReason.QUEUE_EMPTY
@@ -111,9 +112,12 @@ class UploadLoop(
         return end(done, reason)
     }
 
+    private var runStartedCalled = false
+
     private fun end(done: Int, reason: StopReason): RunOutcome {
         settings.lastStopReason = reason.name
-        progress.runEnded(reason)
+        // a run that stopped before it began (paused, not set up) never switched the notification on, so it must not switch it off
+        if (runStartedCalled) progress.runEnded(reason)
         return RunOutcome(done, reason)
     }
 
@@ -230,7 +234,15 @@ class UploadLoop(
         val day = java.time.Instant.ofEpochMilli(first.takenAt).atZone(zone).toLocalDate()
         val from = day.atStartOfDay(zone).toInstant().toEpochMilli()
         val to = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        return listOf(first) + files.queuedSameDay(first.ruleId, documents, from, to, first.topicId, first.id, clock.now(), ALBUM_MAX - 1)
+        // Telegram refuses a request over about 50 MB in all (HTTP 413), however small each file: keep an album well under it
+        if (first.sizeBytes >= ALBUM_MAX_BYTES) return listOf(first)
+        var total = first.sizeBytes
+        val more = ArrayList<FileEntity>()
+        for (f in files.queuedSameDay(first.ruleId, documents, from, to, first.topicId, first.id, clock.now(), ALBUM_MAX - 1)) {
+            if (total + f.sizeBytes > ALBUM_MAX_BYTES) break
+            total += f.sizeBytes; more += f
+        }
+        return listOf(first) + more
     }
 
     private class BatchOutcome(val step: SendStep, val sent: Int)

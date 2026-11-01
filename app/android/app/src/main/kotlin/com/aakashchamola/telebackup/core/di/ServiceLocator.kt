@@ -57,6 +57,7 @@ class ServiceLocator private constructor(val context: Context) {
     val secrets: Secrets by lazy { KeystoreSecrets.create(context) }
 
     val runTracker = RunTracker()
+    private val activeRuns = java.util.concurrent.atomic.AtomicInteger(0)
     val permissions: PermissionProbe by lazy { AndroidPermissionProbe(context) }
     val network: NetworkProbe by lazy { AndroidNetworkProbe(context) }
     val notifier: Notifier by lazy { Notifier(context, settings, runTracker, clock) }
@@ -112,8 +113,9 @@ class ServiceLocator private constructor(val context: Context) {
 
     /** Updates the tracker and the notification as the upload loop reports progress. */
     fun progressSink(): ProgressSink = object : ProgressSink {
-        override fun runStarted(filesTotal: Int, bytesTotal: Long) { runTracker.begin(filesTotal); statusHub.refresh() }
+        override fun runStarted(filesTotal: Int, bytesTotal: Long) { activeRuns.incrementAndGet(); runTracker.begin(filesTotal); statusHub.refresh() }
         override fun fileStarted(name: String, bytesTotal: Long, filesDone: Int, filesTotal: Int) {
+            runTracker.markRunning()   // a file is being sent, so the run is going, whatever another run's end did to the tracker
             runTracker.currentFileName = name; runTracker.bytesTotal = bytesTotal; runTracker.bytesDone = 0
             runTracker.filesDone = filesDone; runTracker.filesTotal = filesTotal
             notifier.updateProgress(force = true); statusHub.refresh()
@@ -126,7 +128,10 @@ class ServiceLocator private constructor(val context: Context) {
             runTracker.filesDone = filesDone; notifier.updateProgress(force = true); statusHub.refresh()
         }
         override fun runEnded(reason: StopReason) {
-            // the run is over, whoever started it: nothing is "being backed up" any more
+            // Only the last run to end switches "Backing up" off: two runs can overlap for a moment (a tap on Upload now,
+            // a retry), and one ending must not blank the notification of the one still sending.
+            if (activeRuns.decrementAndGet() > 0) return
+            activeRuns.set(0)
             runTracker.end()
             notifier.cancelProgress(); statusHub.refresh()
         }
