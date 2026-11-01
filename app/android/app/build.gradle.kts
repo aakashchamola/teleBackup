@@ -96,6 +96,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // TDLib 1.8.67 for the Telegram account (big files, strong check). A community build of the official sources:
+    // SHA-256 of core-0.1.1.aar is 1ec6d6c6c83b655349d8a91182145cdd5400392246136ad79432253ad6004106 (docs/STATUS.md).
+    // Before a family release this should be swapped for a build made from tdlib/td itself (same org.drinkless.tdlib API).
+    implementation("io.github.tdlib-android:core:0.1.1")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
 
     testImplementation("junit:junit:4.13.2")
