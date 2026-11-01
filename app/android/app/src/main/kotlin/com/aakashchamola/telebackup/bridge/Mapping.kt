@@ -82,6 +82,17 @@ internal fun FileEntity.telegramLink(chatId: Long?): String? {
     return if (thread != null) "https://t.me/c/$internal/$thread/$msg" else "https://t.me/c/$internal/$msg"
 }
 
+internal fun com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.toBridge(): AccountState = when (this) {
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.NONE -> AccountState.NONE
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.WAIT_PARAMS -> AccountState.WAIT_PARAMS
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.WAIT_PHONE -> AccountState.WAIT_PHONE
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.WAIT_CODE -> AccountState.WAIT_CODE
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.WAIT_PASSWORD -> AccountState.WAIT_PASSWORD
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.WAIT_OTHER -> AccountState.WAIT_OTHER
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.READY -> AccountState.READY
+    com.aakashchamola.telebackup.core.telegram.account.AccountSnapshot.Step.EXPIRED -> AccountState.EXPIRED
+}
+
 internal fun AccountValue.toBridge(): AccountState = when (this) {
     AccountValue.NONE -> AccountState.NONE
     AccountValue.READY -> AccountState.READY

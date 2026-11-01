@@ -21,6 +21,11 @@ import com.aakashchamola.telebackup.core.secrets.Secrets
 import com.aakashchamola.telebackup.core.settings.SettingsRepository
 import com.aakashchamola.telebackup.core.status.*
 import com.aakashchamola.telebackup.core.telegram.TelegramSender
+import com.aakashchamola.telebackup.core.telegram.account.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import java.io.File
 import com.aakashchamola.telebackup.core.telegram.bot.BotApi
 import com.aakashchamola.telebackup.core.telegram.bot.BotSender
 import com.aakashchamola.telebackup.core.telegram.bot.BotSetup
@@ -70,8 +75,21 @@ class ServiceLocator private constructor(val context: Context) {
     fun botApi(tokenProvider: () -> String? = { secrets.get(SecretNames.BOT_TOKEN) }) = BotApi(tokenProvider)
     val botSetup: BotSetup by lazy { BotSetup(settings, topicStore, clock, { secrets.get(SecretNames.BOT_TOKEN) }) { tp -> botApi(tp) } }
 
-    /** The account (MTProto) sender, once a TDLib build is wired in. Null until then, so big files wait. */
-    var accountSender: TelegramSender? = null
+    /** The TDLib client. Null in a build without the TDLib library: the account stays off and big files wait. */
+    val tdGateway: TdGateway? by lazy { TdGatewayProvider.create(context) }
+
+    val accountAuth: AccountAuth? by lazy {
+        tdGateway?.let { gw ->
+            val base = File(context.noBackupFilesDir, "tdlib")
+            AccountAuth(gw, settings, secrets, { File(base, "db") to File(base, "files") }, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+        }
+    }
+
+    /** The account sender (files over the bot's 50 MB). Null when there is no TDLib, so big files wait. */
+    val accountSender: TelegramSender? get() = accountAuth?.let { AccountSender(it, tdGateway!!) }
+
+    /** Stops the TDLib client after a run; the session stays on disk. */
+    fun releaseAccount() { accountAuth?.release() }
 
     private fun botSender(): TelegramSender? =
         if (secrets.get(SecretNames.BOT_TOKEN) != null) BotSender(botApi()).let { if (debugBuild) FaultySender(it) else it } else null
@@ -88,8 +106,8 @@ class ServiceLocator private constructor(val context: Context) {
         accountVerifier, notifier,
     )
 
-    /** The strong check through the account. Null until the account path exists, which means deletes need the bot-only decision. */
-    var accountVerifier: com.aakashchamola.telebackup.core.clean.AccountVerifier? = null
+    /** The strong check through the account. Null without TDLib, which means deletes need the bot-only decision. */
+    val accountVerifier: com.aakashchamola.telebackup.core.clean.AccountVerifier? get() = accountAuth?.let { AccountRecheck(it, tdGateway!!) }
 
     /** Updates the tracker and the notification as the upload loop reports progress. */
     fun progressSink(): ProgressSink = object : ProgressSink {

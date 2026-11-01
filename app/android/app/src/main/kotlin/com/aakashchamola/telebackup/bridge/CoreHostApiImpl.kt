@@ -302,18 +302,27 @@ class CoreHostApiImpl(private val context: Context) : CoreHostApi {
         val bot = s.botId?.let { BotInfo(it, s.botUsername ?: "", "") }
         val chat = s.chatId
         val group = chat?.let { lastChecks[it]?.let { c -> GroupCheck(c.chatId, c.title, c.topicsOn, c.botIsAdmin, c.botCanManageTopics) } ?: GroupCheck(it, s.chatTitle ?: "", true, true, true) }
-        TelegramState(bot = bot, group = group, account = s.accountState.toBridge(), accountName = s.accountName)
+        val acc = sl.accountAuth?.snapshot()
+        if (acc == null) TelegramState(bot = bot, group = group, account = s.accountState.toBridge(), accountName = s.accountName)
+        else TelegramState(
+            bot = bot, group = group, account = acc.step.toBridge(), accountName = acc.name ?: s.accountName,
+            accountPhoneMasked = acc.phoneMasked, codeSentTo = acc.codeSentTo, passwordHint = acc.passwordHint, lastError = acc.lastError,
+        )
     }
 
-    override suspend fun accountStart(apiId: Long, apiHash: String) = io { throw FlutterError("INTERNAL", accountMissing) }
-    override suspend fun accountPhone(phone: String) = io { throw FlutterError("INTERNAL", accountMissing) }
-    override suspend fun accountCode(code: String) = io { throw FlutterError("INTERNAL", accountMissing) }
-    override suspend fun accountPassword(password: String) = io { throw FlutterError("INTERNAL", accountMissing) }
-    override suspend fun accountResendCode() = io { throw FlutterError("INTERNAL", accountMissing) }
+    private fun account() = sl.accountAuth ?: throw FlutterError("INTERNAL", accountMissing)
+    override suspend fun accountStart(apiId: Long, apiHash: String) = io { account().start(apiId, apiHash); Unit }
+    override suspend fun accountPhone(phone: String) = io { account().phone(phone); Unit }
+    override suspend fun accountCode(code: String) = io { account().code(code); Unit }
+    override suspend fun accountPassword(password: String) = io { account().password(password); Unit }
+    override suspend fun accountResendCode() = io { account().resendCode(); Unit }
     override suspend fun accountLogout() = io {
+        val a = sl.accountAuth
+        if (a != null) a.logout() else {
+            sl.settings.accountState = com.aakashchamola.telebackup.core.model.AccountValue.NONE
+            sl.settings.accountName = null
+        }
         sl.secrets.remove(SecretNames.API_ID); sl.secrets.remove(SecretNames.API_HASH)
-        sl.settings.accountState = com.aakashchamola.telebackup.core.model.AccountValue.NONE
-        sl.settings.accountName = null
     }
 
     override suspend fun createSuggestedRules(suggestionPaths: List<String>, startMode: StartMode, startDate: Long?): Long = io {

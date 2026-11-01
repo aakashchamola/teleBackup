@@ -60,6 +60,7 @@ class DailyWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
             sl.cleaner().run(sl.permissions.state().allFiles)
             sl.eventStore.prune(sl.clock.now() - 90 * Time.DAY)
         }
+        sl.releaseAccount()
         sl.raiseAttention()
         if (sl.fileStore.queueCount(sl.clock.now(), true, true).count > 0) sl.scheduler.enqueueUpload()
         return Result.success()
@@ -74,6 +75,7 @@ class CleanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         if (!ok) return Result.success()
         val reviewId = inputData.getLong(WorkScheduler.KEY_REVIEW, -1L).takeIf { it > 0 }
         withContext(Dispatchers.IO) { sl.cleaner().run(ok, reviewId) }
+        sl.releaseAccount()
         sl.statusHub.refresh()
         return Result.success()
     }
@@ -134,6 +136,7 @@ class UploadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         } finally {
             withContext(NonCancellable) {
                 sl.runTracker.end(timeLimit)
+                sl.releaseAccount()
                 afterRun(sl)
             }
         }
