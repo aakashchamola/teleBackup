@@ -4,10 +4,10 @@ Where to develop: the **owner's own computer**. The shared work machine used for
 
 The full step-by-step install with checkboxes is `docs/phases/M0.md`. This file is the short version. After M0, write here: pinned Flutter version, Android SDK platform, JDK, and the owner's phone (model, Android version).
 
-- Pinned Flutter: _(fill in M0)_
-- Android SDK platform / build-tools: _(fill in M0)_
-- JDK: _(fill in M0)_
-- Owner's phone: _(fill in M0)_
+- Pinned Flutter: 3.47.9 stable (Dart 3.13), at `C:\Users\aakas\devtools\flutter` (shallow clone)
+- Android SDK platform / build-tools: platforms 35 and 36, build-tools 35.0.0 and 36.0.0, platform-tools 37.0.1, at `C:\Users\aakas\devtools\android-sdk`
+- JDK: Temurin 17.0.20 at `C:\Users\aakas\devtools\jdk17`
+- Owner's phone: _not connected yet (adb lists no device); fill in when plugged in_
 - Connection: USB cable (owner's choice).
 
 ## Computer (Linux or WSL 2)
@@ -35,3 +35,8 @@ If the computer is WSL 2, `adb` inside WSL cannot see USB devices by default. Ei
 
 ## Secrets
 Entered in the app on the phone, stored with the Android Keystore. They do not go in files, chats or git.
+
+## This computer (Windows, set up 2026-11-01)
+Tools live in `C:\Users\aakas\devtools` (outside every project). `. C:\Users\aakas\devtools\env.ps1` sets `JAVA_HOME`, `ANDROID_HOME` and `PATH` for one PowerShell session. Flutter, platform-tools and cmdline-tools are also on the user `PATH`.
+- In Git Bash the SDK tools are `.bat` files: call `sdkmanager.bat`.
+- **Gradle download trap:** Java's downloader times out on this network while curl works. If a build says "Connection timed out" fetching `gradle-9.3.1-all.zip`, download it with curl and copy it into `~/.gradle/wrapper/dists/gradle-9.3.1-all/<hash>/` (hash = base36 of the MD5 of the distribution URL). Other downloads are flaky (DNS timeouts): re-run the build, Gradle keeps what it already fetched.

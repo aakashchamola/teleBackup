@@ -26,3 +26,11 @@ Newest at the end.
 - Refinements found while writing (recorded in ARCHITECTURE "Refinements"): media photos can't be size-matched; bots can't list topics (own `topics` table); battery exemption is required for background start; enabling Topics changes the group id; minSdk 30; allowBackup off.
 - CLAUDE.md: points to the new docs; commit attribution line is now model-neutral; toolchain not installed on the shared work machine.
 - Next: owner pulls on their own computer and starts `docs/phases/M0.md`.
+
+## 2026-11-01: M0 on the owner's Windows PC
+- Owner said to download whatever is needed and finish the whole development unattended. Installed JDK 17, Flutter 3.47.9, Android SDK (35/36) under `C:\Users\aakas\devtools`.
+- `flutter create` app in `app/`; minSdk 30, manifest permissions, allowBackup off, hello screen + Kotlin `ping`. `flutter analyze`, `flutter test` and `flutter build apk --debug` pass.
+- NOT done: running on the phone. No phone is connected (`adb devices` empty). The owner is out. Phone checks stay unticked until it is plugged in.
+- Found: Java's downloader cannot reach the Gradle distribution here (curl can); workaround written in SETUP.md.
+- Commit rule: no Claude co-author line (owner's standing rule); CLAUDE.md and DEVELOPMENT.md updated.
+- Next: build the parts that need no phone (M2-M5 core and screens, tested on this PC); M1 phone/Telegram spikes wait for the phone and a throwaway Telegram group.

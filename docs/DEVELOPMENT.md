@@ -149,7 +149,7 @@ From `app/`:
 - Work milestone by milestone, in order. Each `docs/phases/Mx.md` has numbered tasks; do them in order, tick them in that file as they are done (`- [x]`), and commit.
 - Starting a session: read `CLAUDE.md`, the current phase file, and the end of `docs/SESSION_LOG.md`.
 - Branching: `main` only (personal project). Small commits, one task or less each. Push after each finished task (the owner wants everything pushed).
-- Commit messages: first line says what changed for the app in plain words ("Scanner queues WhatsApp images newest first"). End with the `Co-Authored-By` line for the Claude model doing the work.
+- Commit messages: first line says what changed for the app in plain words ("Scanner queues WhatsApp images newest first"). No Claude co-author line (owner's standing rule).
 - Before every commit: `git diff --cached` checked for secrets; `flutter analyze` and the fast tests pass.
 - After each piece of work: a few lines in `docs/SESSION_LOG.md` (what, what was found, what's next).
 - Things found on the phone that change the design: write them in `docs/M1_FINDINGS.md` (or the phase file) **and** fix the design doc they contradict in the same commit.
