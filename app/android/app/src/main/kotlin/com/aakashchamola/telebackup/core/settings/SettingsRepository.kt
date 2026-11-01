@@ -91,7 +91,10 @@ class SettingsRepository(private val kv: KeyValueStore) {
     var lastStopReason: String? get() = kv.get(Keys.LAST_STOP_REASON); set(v) = put(Keys.LAST_STOP_REASON, v)
 
     /** Debug builds only: retention counts minutes instead of days. */
-    var timeWarp: Boolean get() = bool(Keys.TIME_WARP, false); set(v) = put(Keys.TIME_WARP, v)
+    var timeWarp: Boolean get() = debugBuild && bool(Keys.TIME_WARP, false); set(v) = put(Keys.TIME_WARP, v)
+
+    /** True only in debug builds; without it the time warp can never act, whatever the table holds. */
+    @Volatile var debugBuild: Boolean = true
 
     companion object {
         val DEFAULT_DELAYS = listOf(120, 300)
