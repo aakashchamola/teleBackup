@@ -39,7 +39,8 @@ dependencies:
   intl: ^0.20.3
   url_launcher: ^6.3.3
   permission_handler: 12.0.1
-  dynamic_color: ^2.1.0
+  dynamic_color: 1.8.1
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:
