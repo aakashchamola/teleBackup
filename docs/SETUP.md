@@ -40,3 +40,6 @@ Entered in the app on the phone, stored with the Android Keystore. They do not g
 Tools live in `C:\Users\aakas\devtools` (outside every project). `. C:\Users\aakas\devtools\env.ps1` sets `JAVA_HOME`, `ANDROID_HOME` and `PATH` for one PowerShell session. Flutter, platform-tools and cmdline-tools are also on the user `PATH`.
 - In Git Bash the SDK tools are `.bat` files: call `sdkmanager.bat`.
 - **Gradle download trap:** Java's downloader times out on this network while curl works. If a build says "Connection timed out" fetching `gradle-9.3.1-all.zip`, download it with curl and copy it into `~/.gradle/wrapper/dists/gradle-9.3.1-all/<hash>/` (hash = base36 of the MD5 of the distribution URL). Other downloads are flaky (DNS timeouts): re-run the build, Gradle keeps what it already fetched.
+
+## Installing on a phone with several users (found 2026-11-02)
+`flutter install` puts the app into **every** user on the phone (this Moto has four), so the app list shows it twice or more. Use `adb install -r --user 0 app/build/app/outputs/flutter-apk/app-debug.apk`. Also, `gradlew :app:connectedDebugAndroidTest` **uninstalls the app** when it finishes (and its data): reinstall afterwards. On Windows Git Bash, run adb with `MSYS_NO_PATHCONV=1` or `/sdcard/...` paths get mangled.

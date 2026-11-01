@@ -51,7 +51,7 @@ class MediaStoreSource(private val context: Context) : MediaSource {
                     val kind = if (c.getInt(iType) == F.MEDIA_TYPE_VIDEO) FileKind.VIDEO else FileKind.PHOTO
                     out += MediaItem(
                         mediaStoreId = c.getLong(iId), path = file.absolutePath, displayName = name,
-                        mimeType = c.getString(iMime) ?: "application/octet-stream", sizeBytes = c.getLong(iSize),
+                        mimeType = c.getString(iMime) ?: "application/octet-stream", sizeBytes = c.getLong(iSize).takeIf { it > 0 } ?: file.length(),   // MediaStore keeps 0 until its own scan (seen on the Moto G62)
                         modifiedAt = c.getLong(iMod) * 1000, takenAt = c.getLong(iTaken).takeIf { it > 0 },
                         width = c.getInt(iW).takeIf { it > 0 }, height = c.getInt(iH).takeIf { it > 0 },
                         durationMs = c.getLong(iDur).takeIf { it > 0 && kind == FileKind.VIDEO }, kind = kind,
