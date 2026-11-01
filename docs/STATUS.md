@@ -1,4 +1,4 @@
-# teleBackup: where things stand (2026-11-02)
+# teleBackup: where things stand (2026-11-02, updated after the phone arrived)
 
 Everything that can be built and proven on a computer is built and tested. What is left needs **the owner's phone**, a **throwaway Telegram group**, or **the owner's decisions**. Nothing below is marked done unless a test or a build proved it.
 
@@ -11,14 +11,17 @@ Everything that can be built and proven on a computer is built and tested. What 
 | "Only one door" rules: only `FileDeleter` can delete; only the state machine writes `state`; only the delete gate makes a delete permit | `SourceScanTest` + a 20,000-case random check of the gate |
 | Flutter screens: setup O1-O7, Home with every status-card variant, rules list/detail/editor/folder/topic, delete warning, review, history, file detail, settings, Telegram connection, login, permissions, diagnostics, developer, navigation, notification routes, 320 dp wide at 200% text, dark theme | **74 widget tests** (`cd app && flutter test`), `flutter analyze` clean |
 | Debug APK builds; release APK builds with code shrinking (R8) and **refuses to build without the family signing key** | `flutter build apk --debug`, `TELEBACKUP_DEBUG_SIGNED_RELEASE=1 flutter build apk --release --split-per-abi` |
-| On-phone tests compile (migration, real Keystore, MediaStore, file delete) | `:app:compileDebugAndroidTestKotlin` |
+| On the Moto G62 (Android 13): migration, real Keystore, MediaStore scan, file delete, TDLib starts and asks for a phone number | `:app:connectedDebugAndroidTest` (5 + 1 pass) |
+| The whole bot path on the phone: scan, upload to a topic, reply check, review, delete through the gate | `BotEndToEndTest` (`am instrument`, token from the vault), passed twice |
+| Bot API facts (photo shrinking, 50 MB edge, errors, byte-exact download) | `docs/M1_FINDINGS.md` |
 
 ## Not done, and why
 | Item | Needs | Phase |
 |---|---|---|
 | Run the app on the phone, record the phone model | The phone plugged in with USB debugging (`adb devices` shows nothing now) | M0 |
 | Every M1 question (Q1-Q7), `docs/M1_FINDINGS.md` | Phone + throwaway Telegram group with Topics + bot token (`tools/make_testkit.sh`, `tools/push_testkit.sh` are written, not yet run) | M1 |
-| **The Telegram account path (TDLib)**: big videos (50 MB and over), the strong check before delete, account login screens | A TDLib build for Android (M1 task C, an owner checkpoint: big download). The seams are in place: `TelegramSender`, `AccountVerifier`, `ServiceLocator.accountSender/accountVerifier`. Until then big files wait in the queue and the login screen says so | M1/M3/M4 |
+| **Account login and a real send as the account** (the code is written and runs: `AccountAuth`, `AccountSender`, `AccountRecheck`, `TdlibGateway`; 11 + 3 JVM tests with a fake gateway) | **api_id and api_hash** from my.telegram.org (only the owner can get them), then the owner logs in once on the phone. After that: a 75 MB send, a 1 GB send with a Wi-Fi drop, and the bot-message re-fetch (Q6) are still to be run | M1/M3/M4 |
+| TDLib binary: the one in use is a community build | Build it from tdlib/td before a family release (`docs/M1_FINDINGS.md` Q5) | M7 |
 | D1: may a bot-only setup delete? | The owner. Default is **no** (`delete.allowBotOnly = false`), so with no account **nothing is ever deleted** | M1 |
 | Device checks F1-F15, background survival for hours, Android 15 time limit, maker settings | Phone | M3/M6 |
 | Family test of setup, TalkBack pass, screenshots | A person and the phone | M5 |
