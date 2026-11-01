@@ -40,6 +40,12 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    sourceSets {
+        // the exported Room schemas, for the migration test
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 
     testOptions {
@@ -99,6 +105,12 @@ dependencies {
     testImplementation("androidx.work:work-testing:2.12.0")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("androidx.room:room-testing:2.8.5")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.room:room-testing:2.8.5")
+    androidTestImplementation("com.google.truth:truth:1.4.5")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 flutter {

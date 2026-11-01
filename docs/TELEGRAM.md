@@ -77,6 +77,8 @@ And for all: `sent.chatId == job.chatId`, `sent.threadId == job.threadId` (null 
 | 5xx | `Server(code)` | After 3 in a row | Backoff. |
 | IO error, timeout, no network | `Network` | No | Back to `QUEUED`; the worker checks the network and stops if it is gone. |
 
+> **Built differences (2026-11-02):** a flood-wait of up to 2 minutes is slept through inside the run; a longer one leaves the file for a later run. A flood-wait on the account route blocks only that route. File names are sent as raw UTF-8 in the multipart header (OkHttp), not RFC 5987 `filename*`: M1 must check that Telegram shows them right.
+
 ### Pace
 - `Pacer`: a token bucket per chat, `upload.botPacePerMinute` (15) tokens per minute, burst 3. Telegram's documented limit is about 20 messages per minute into one group, so 15 leaves room.
 - One send at a time. No parallel bot sends in v1.

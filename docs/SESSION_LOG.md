@@ -34,3 +34,12 @@ Newest at the end.
 - Found: Java's downloader cannot reach the Gradle distribution here (curl can); workaround written in SETUP.md.
 - Commit rule: no Claude co-author line (owner's standing rule); CLAUDE.md and DEVELOPMENT.md updated.
 - Next: build the parts that need no phone (M2-M5 core and screens, tested on this PC); M1 phone/Telegram spikes wait for the phone and a throwaway Telegram group.
+
+## 2026-11-01/02: built everything that needs no phone
+- Owner (away) said: download what is needed, finish the whole development. Installed JDK 17, Flutter 3.47.9, Android SDK 35/36/37 under `C:\Users\aakas\devtools`.
+- Kotlin core written and tested on the computer: file state machine (every state x event), delete gate (random 20,000-case check), router, pacer, captions, reply checks, redaction, scanner, upload loop, cleaner and reviews, kill switch, controls, rules, settings, status/warnings, export/import, diagnostics, folder catalog. Room database with all DAOs, tested on real SQLite via Robolectric. Bot API client and setup calls tested against a fake server. Secret store (AES-GCM, Android Keystore). Workers, scheduler, notifications, receiver. 201 JVM tests.
+- Pigeon bridge and its Kotlin implementation. Flutter app: setup O1-O7, Home, rules (list/detail/editor/folder/topic), review, history, file, settings, Telegram, login, permissions, diagnostics, developer; FakeCore; 74 widget tests; analyzer clean.
+- Release: signing refuses without the key, R8 rules, adaptive icon. Debug and release APKs build. On-phone tests written and compile.
+- Found by tests and fixed on the way: a retry-due FAILED file was never moved back to QUEUED before upload; a short flood-wait ended the run early; button rows could overflow at large text; screens had no safe "back" when opened from a notification; a secret-store `delete()` tripped the one-door scan (now truncates).
+- Not done: anything on the phone, all of M1's questions, TDLib/account path, owner decisions D1/D2, signing key. See `docs/STATUS.md`.
+- Commit rule kept: no Claude co-author line.

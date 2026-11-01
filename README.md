@@ -4,7 +4,7 @@ An Android app that frees phone storage. It moves new photos and videos from fol
 
 Built for the owner and their family. Each person uses their own Telegram account, bot and group. There is no server and no shared data.
 
-**Status:** planning and full design done (1 Nov 2026), no code yet. Next step is M0 ([docs/phases/M0.md](docs/phases/M0.md)) on the owner's own computer: install the tools and run a hello-world on the owner's phone in debug mode.
+**Status (2 Nov 2026):** everything that can be built and tested on a computer is built (201 Kotlin tests, 74 Flutter tests, debug and release APKs build). Nothing has run on a phone yet. See [docs/STATUS.md](docs/STATUS.md) for what is proven, what needs the phone or the owner, and the next steps.
 
 ## Read in this order
 1. [docs/PLAN.md](docs/PLAN.md): what the app does and every decision made, with the reasons.
@@ -18,8 +18,9 @@ Built for the owner and their family. Each person uses their own Telegram accoun
 9. [docs/TESTING.md](docs/TESTING.md): tests, test kit, device checks.
 10. [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/phases/](docs/phases/README.md): milestones, then one step-by-step file per milestone (M0-M7).
 11. [docs/SETUP.md](docs/SETUP.md): setting up a computer and connecting the phone.
-12. [docs/M1_FINDINGS.md](docs/M1_FINDINGS.md): answers found on the real phone (filled in M1).
-13. [docs/SESSION_LOG.md](docs/SESSION_LOG.md): what was done, newest at the end.
+12. [docs/STATUS.md](docs/STATUS.md): where things stand and what is next.
+13. [docs/M1_FINDINGS.md](docs/M1_FINDINGS.md): answers found on the real phone (filled in M1).
+14. [docs/SESSION_LOG.md](docs/SESSION_LOG.md): what was done, newest at the end.
 
 ## One-line summary of how it works
 Daily scan finds new files per folder rule, queues them, uploads on Wi-Fi to the rule's topic, confirms with Telegram, waits the rule's retention days, then deletes from the phone.

@@ -202,6 +202,8 @@ Rules are **soft-deleted**: `deletedAt` is set, `enabled` becomes false, and the
 - A soft-deleted rule never deletes files (gate condition 3 fails because it is disabled).
 - The rule's name is freed for reuse (the unique index is on `name` where `deletedAt IS NULL`).
 
+> **Built differences (2026-11-02):** Room cannot express the partial unique index on live rule names, so `RuleRepository` enforces it. New settings: `telegram.botProblem`, `delete.allowBotOnly` (owner decision D1, default false). The queue also hides a `QUEUED` row whose `nextAttemptAt` is in the future (flood-wait).
+
 ## Migrations
 - Room `exportSchema = true`, schemas committed in `app/android/app/schemas/`.
 - Every schema change bumps the version and adds a written `Migration` with a test (`MigrationTestHelper`). No destructive fallback in release builds: losing the database would lose which files are already backed up.

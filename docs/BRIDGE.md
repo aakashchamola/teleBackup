@@ -15,6 +15,8 @@ The UI (Flutter) and the core (Kotlin) talk only through this contract. It is wr
 - Secrets go **in** only (token, api_hash, codes, password). No call ever returns a secret.
 - Add fields at the end; do not reuse removed names. The app ships as one APK, so both sides always match, but this keeps diffs readable.
 
+> **Built form (2026-11-02):** `app/pigeons/core_api.dart` is the source of truth. Current Pigeon needs constructor-style classes (`late` fields no longer work), so the snippet below shows the shape, not the exact syntax. Additions: `AppSettings.debugBuild`, `devCommand` (debug builds only), `CoreEventsApi.onOpenRoute`, `Review.id == 0` for a preview. Suggested folders travel as `folder?types=photos|videos|both`. Kotlin calls are `suspend`.
+
 ## The contract (Pigeon file)
 ```dart
 // app/pigeons/core_api.dart

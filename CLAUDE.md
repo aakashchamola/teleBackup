@@ -14,6 +14,6 @@ Android app (Flutter UI + native Kotlin background code) that offloads photos/vi
 ## Where things are
 - Product decisions: `docs/PLAN.md`. Design: `docs/ARCHITECTURE.md`, `docs/HOW_IT_WORKS.md`. Screens: `docs/UI.md`. Data and the delete gate: `docs/DATA_MODEL.md`. Telegram: `docs/TELEGRAM.md`. Flutter/Kotlin contract: `docs/BRIDGE.md`. Code rules: `docs/DEVELOPMENT.md`. Tests: `docs/TESTING.md`.
 - What to build next: `docs/phases/` (one file per milestone, tick tasks as done). Milestones and risks: `docs/ROADMAP.md`.
-- Starting a session: read this file, the current phase file, and the end of `docs/SESSION_LOG.md`; continue from the first unticked task.
+- Starting a session: read this file, `docs/STATUS.md`, the current phase file, and the end of `docs/SESSION_LOG.md`; continue from the first unticked task.
 - Do not install the toolchain on the shared Linux work machine (owner's decision, 2026-11-01). Development happens on the owner's own Windows PC; tools are in `C:\Users\aakas\devtools` (see `docs/SETUP.md`).
 - Repo lives at `~/PX4-Autopilot/src/project/teleBackup`. It is a separate project; do not mix it into flyMe.
