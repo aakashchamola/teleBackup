@@ -2,11 +2,13 @@
 
 Order matters. The first goal is to prove the risky parts on the real phone before building screens.
 
+Each milestone has its own step-by-step file in [phases/](phases/README.md) (tasks with checkboxes, on-phone checks, owner checkpoints). Which screens each milestone builds: `docs/UI.md` section 13.
+
 ## Milestones
 
 | # | Name | Done when |
 |---|---|---|
-| M0 | Tools and hello-world | Flutter and Android SDK installed. The owner's phone is connected in debug mode. A blank teleBackup app runs on it. |
+| M0 | Tools and hello-world | Flutter, Android SDK and JDK 17 installed on the owner's own computer. The owner's phone is connected in debug mode (USB). A blank teleBackup app runs on it and pings its Kotlin side. |
 | M1 | Proof of concept (the spike) | On the phone, in a test folder: one photo goes to a topic through the **bot**; one video over 50 MB goes through the **account**; the reply is checked; the file is deleted. Also answers the "check on device" list below. |
 | M2 | Rules, database, scanner | Rules saved. The daily scan queues the right files, newest first. State machine tests pass. |
 | M3 | Background upload and notification | Queue uploads on Wi-Fi in the background with the progress notification. Pause, Delay 2h/5h and Resume work. Wi-Fi loss and phone restart resume cleanly. |
@@ -16,7 +18,7 @@ Order matters. The first goal is to prove the risky parts on the real phone befo
 | M7 | Family release | Signed APK, install and update steps, a short guide. iOS considered after this. |
 
 ## M1 questions to answer on the real phone
-These are things I believe are true but have not proven on a device. M1 settles each one:
+These are things I believe are true but have not proven on a device. M1 settles each one and records the answer in `docs/M1_FINDINGS.md`:
 - Does deleting with "All files access" work for Gallery photos, **WhatsApp media** (`Android/media/com.whatsapp/...`) and Screenshots on this phone's Android version?
 - After a delete, does the gallery still show the file until a MediaStore refresh?
 - Does `sendVideo` keep the video bytes as they are (no recompression), and what does `sendPhoto` do to a full-resolution photo?

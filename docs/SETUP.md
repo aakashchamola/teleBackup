@@ -1,11 +1,20 @@
 # teleBackup: setting up a computer and the phone
 
-State on 2026-11-01 (this computer): `adb` and Java 11 are installed. **Flutter and the Android SDK are not installed yet.** No phone is connected. M0 installs the rest. Ask the owner before the first big download.
+Where to develop: the **owner's own computer**. The shared work machine used for planning (adb + Java 11 only, disk 96% full) is not used for teleBackup builds; the owner decided on 2026-11-01 not to install the toolchain there.
+
+The full step-by-step install with checkboxes is `docs/phases/M0.md`. This file is the short version. After M0, write here: pinned Flutter version, Android SDK platform, JDK, and the owner's phone (model, Android version).
+
+- Pinned Flutter: _(fill in M0)_
+- Android SDK platform / build-tools: _(fill in M0)_
+- JDK: _(fill in M0)_
+- Owner's phone: _(fill in M0)_
+- Connection: USB cable (owner's choice).
 
 ## Computer (Linux or WSL 2)
 1. Flutter SDK (stable) in `~/flutter`, on `PATH`.
 2. Android command-line tools + platform-tools + one recent platform and build-tools; accept licences. Java 17 is needed by current Android builds (Java 11 here is too old for new Gradle), so install a JDK 17.
 3. `flutter doctor` must show Android toolchain with no red marks.
+4. At least 15 GB free disk. Building TDLib from source (only if M1 needs it) takes more; see `docs/TELEGRAM.md` section 3.
 
 ## Phone (debug mode)
 1. Settings, About phone, tap **Build number** 7 times to unlock Developer options.

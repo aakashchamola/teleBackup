@@ -41,5 +41,8 @@ captures/
 .DS_Store
 *.log
 
+# test kit files made by tools/make_testkit.sh (large media)
+testkit/
+
 # graphify output (rebuilt locally)
 graphify-out/

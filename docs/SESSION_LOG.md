@@ -19,3 +19,10 @@ Newest at the end.
 - Phone link chosen: USB cable (no phone detected on USB yet).
 - Stray repo `skyflockuav/teleBackup`: not found under skyflockuav (7 repos listed, none is teleBackup). Owner dropped the deletion. The `skyflockuav` token has no `delete_repo` scope; nothing was deleted or changed.
 - Next: owner decides where to install the toolchain, then M0 continues.
+
+## 2026-11-01: full design and phase plans written
+- Owner asked for the whole UI plan, how everything works, and every development phase written in advance, then pushed, so development can start on the owner's own computer after a pull.
+- New docs: `UI.md` (every screen O1-O7 and S-*, dialogs, notifications, words, which milestone builds which screen), `HOW_IT_WORKS.md` (every situation step by step: setup, scan, upload loop, pause/delay, network, time limits, crashes, delete, attention cases), `DATA_MODEL.md` (tables, settings keys, state machine, delete gate with 9 conditions, migrations, secrets), `TELEGRAM.md` (routing, Bot API calls and errors, TDLib login/send/ids, captions), `BRIDGE.md` (Pigeon contract), `DEVELOPMENT.md` (repo layout, libraries, commands, code rules), `TESTING.md` (unit/widget/instrumented tests, test kit, device checks F1-F15), `phases/M0..M7.md` (step-by-step tasks with checkboxes), `M1_FINDINGS.md` (template).
+- Refinements found while writing (recorded in ARCHITECTURE "Refinements"): media photos can't be size-matched; bots can't list topics (own `topics` table); battery exemption is required for background start; enabling Topics changes the group id; minSdk 30; allowBackup off.
+- CLAUDE.md: points to the new docs; commit attribution line is now model-neutral; toolchain not installed on the shared work machine.
+- Next: owner pulls on their own computer and starts `docs/phases/M0.md`.
