@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.devtools.ksp")
@@ -5,6 +7,15 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// The release key stays outside the repo. app/android/key.properties (git-ignored) points to it (docs/phases/M7.md).
+val keyProps = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val hasReleaseKey = keyProps.getProperty("storeFile") != null
+// For checking a release build on a computer without the family key. Never for APKs that are handed out.
+val debugSignedRelease = System.getenv("TELEBACKUP_DEBUG_SIGNED_RELEASE") == "1"
 
 android {
     namespace = "com.aakashchamola.telebackup"
@@ -36,11 +47,27 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = when {
+                hasReleaseKey -> signingConfigs.getByName("release")
+                debugSignedRelease -> signingConfigs.getByName("debug")
+                else -> null
+            }
         }
     }
 }
@@ -83,5 +110,13 @@ afterEvaluate {
     tasks.matching { it.name.startsWith("package") && it.name.endsWith("UnitTestForUnitTest") }.configureEach {
         val variant = name.removePrefix("package").removeSuffix("UnitTestForUnitTest")
         tasks.findByName("copyFlutterAssets$variant")?.let { dependsOn(it) }
+    }
+}
+
+// A release build without the family key must fail loudly, not hand out an unsigned or debug-signed APK.
+gradle.taskGraph.whenReady {
+    val building = allTasks.any { it.path.startsWith(":app:") && (it.name == "assembleRelease" || it.name == "bundleRelease") }
+    if (building && !hasReleaseKey && !debugSignedRelease) {
+        throw GradleException("Release signing key missing. Make key.properties as described in docs/phases/M7.md (or set TELEBACKUP_DEBUG_SIGNED_RELEASE=1 to check a build on this computer only).")
     }
 }
