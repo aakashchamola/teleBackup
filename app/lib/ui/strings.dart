@@ -272,7 +272,6 @@ class S {
   static const changeBot = 'Change bot';
   static const changeGroup = 'Change group';
   static const loginTitle = 'Log in to your account';
-  static const accountNotInBuild = 'Logging in to a Telegram account is not in this build yet. Big videos wait.';
 
   // diagnostics
   static const copy = 'Copy';

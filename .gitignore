@@ -46,3 +46,4 @@ testkit/
 
 # graphify output (rebuilt locally)
 graphify-out/
+dist/

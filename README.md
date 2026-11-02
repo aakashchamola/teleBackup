@@ -4,9 +4,12 @@ An Android app that frees phone storage. It moves new photos and videos from fol
 
 Built for the owner and their family. Each person uses their own Telegram account, bot and group. There is no server and no shared data.
 
-**Status (2 Nov 2026):** everything that can be built and tested on a computer is built (201 Kotlin tests, 74 Flutter tests, debug and release APKs build). Nothing has run on a phone yet. See [docs/STATUS.md](docs/STATUS.md) for what is proven, what needs the phone or the owner, and the next steps.
+**Status (2 Nov 2026):** version 1.0.0 is built, signed and published as a GitHub Release (Releases page, right side of this repo). It has run on the owner's phone: the whole gallery (582 files, including two videos over 2 GB sent in parts) is backed up and checked, and nothing was deleted from the phone. See [docs/STATUS.md](docs/STATUS.md) for what is proven and what is still open.
+
+**Using it:** read [docs/USER_GUIDE.md](docs/USER_GUIDE.md): install, first setup, rules, deleting, troubleshooting.
 
 ## Read in this order
+0. [docs/USER_GUIDE.md](docs/USER_GUIDE.md): the complete guide for people who use the app.
 1. [docs/PLAN.md](docs/PLAN.md): what the app does and every decision made, with the reasons.
 2. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it is built (overview).
 3. [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md): what happens, step by step, in every situation.
