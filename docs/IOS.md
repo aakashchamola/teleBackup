@@ -40,7 +40,7 @@ Once set up, nothing needs doing:
 
 ## Installing without paying (free Apple ID)
 The build script makes an unsigned file: `tools/build_ios_ipa.sh` -> `app/build/ios-release/teleBackup-ios.ipa`.
-Each person installs it with **AltStore** (altstore.io) or **Sideloadly** (sideloadly.io), signing with their own free Apple ID.
+The family way is **SideStore**, which refreshes the 7-day signature on the phone by itself: follow [IOS_SIDESTORE.md](IOS_SIDESTORE.md). AltStore (altstore.io) or Sideloadly (sideloadly.io) also work.
 
 1. On the iPhone: Settings > Privacy & Security > **Developer Mode** > on (restarts the phone).
 2. Install AltServer (or Sideloadly) on a Mac or Windows PC, plug the iPhone in once, and install the `.ipa`.

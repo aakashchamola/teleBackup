@@ -130,7 +130,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, ReviewNotifier
         let fire = Date(timeIntervalSince1970: Double(expiresAt) / 1000 - 2 * 86400)
         guard fire > Date() else { return }
         let c = UNMutableNotificationContent()
-        c.title = "teleBackup needs a refresh"; c.body = "This install runs out in 2 days. Open AltStore on your computer's Wi-Fi to refresh it, or backups will stop."
+        c.title = "teleBackup needs a refresh"; c.body = "This install runs out in 2 days. Open LocalDevVPN, tap Connect, then open SideStore and refresh teleBackup, or backups will stop."
         c.sound = .default
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
         center.add(UNNotificationRequest(identifier: Self.expiryId, content: c, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))

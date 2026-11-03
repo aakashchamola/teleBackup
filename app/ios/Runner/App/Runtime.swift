@@ -267,7 +267,7 @@ final class Runtime {
         if !p.notifications { out.append(Attention(kind: .notificationsOff, text: "Notifications are off, so you won't see progress.")) }
         if !p.backgroundRefresh { out.append(Attention(kind: .batteryOptimized, text: "Background App Refresh is off, so backups only run while the app is open.")) }
         if let exp = settings.signatureExpiresAt, exp - now < 2 * Time.day {
-            out.append(Attention(kind: .batteryOptimized, text: exp < now ? "This app's 7-day install has run out. Re-install it with AltStore." : "This app's 7-day install runs out soon. Open AltStore to refresh it."))
+            out.append(Attention(kind: .batteryOptimized, text: exp < now ? "This app's 7-day install has run out. Open LocalDevVPN (Connect), then SideStore, and refresh teleBackup." : "This app's 7-day install runs out soon. Open SideStore to refresh it."))
         }
         let skipped = store.skippedCountSince(now - 7 * Time.day)
         if skipped > 0 { out.append(Attention(kind: .skippedRecently, text: "\(skipped) file\(skipped == 1 ? "" : "s") skipped this week.", count: Int64(skipped))) }
