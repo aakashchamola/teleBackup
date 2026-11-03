@@ -23,6 +23,7 @@ import Photos
     CoreHostApiSetup.setUp(binaryMessenger: messenger, api: host)
     Runtime.shared.events_ = CoreEventsApi(binaryMessenger: messenger)
     Runtime.shared.refreshSignature()
+    Runtime.shared.flushPendingRoute()
   }
 
   private func observeLifecycle() {
@@ -30,6 +31,8 @@ import Photos
       Notifier.shared.clearProgress()
       Runtime.shared.startRun()
       Runtime.shared.pushStatus()
+      Runtime.shared.flushPendingRoute()
+      Runtime.shared.armDelayTimer()
     }
     NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
       BackgroundWork.schedule()

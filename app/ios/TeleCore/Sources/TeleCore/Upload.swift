@@ -7,6 +7,8 @@ public protocol AssetExporter {
     func facts(_ assetId: String) -> DiskFacts
 }
 public protocol Hasher { func sha256(path: String) throws -> String }
+/// HEIC/HEIF to JPEG, small enough for Telegram's photo limit. False when it cannot be done (the original then goes as a file).
+public protocol ImageConverter { func toJpeg(source: String, dest: String, maxBytes: Int64) -> Bool }
 
 public protocol ProgressSink: AnyObject {
     func runStarted(filesTotal: Int, bytesTotal: Int64)
@@ -33,6 +35,7 @@ public final class UploadEngine {
     let exporter: AssetExporter, hasher: Hasher, sender: TelegramSender, control: ControlService
     let account: TelegramSender?
     public var splitter: VideoSplitter?
+    public var converter: ImageConverter?
     public var scratchDir: String?
     private var accountStopped = false
     private var botStopped = false
@@ -128,10 +131,23 @@ public final class UploadEngine {
             _ = try? store.apply(file.id, .vanished, now: clock.now()); return .retry
         }
         if file.sha256 == nil { var u = file; u.sha256 = hash; store.updateDetails(u) }
-        let job = SendJob(chatId: settings.chatId!, threadId: file.topicId ?? rule.topicId, path: exported.path, displayName: file.displayName,
-                          mimeType: file.mimeType, sendAs: file.sendAs ?? .document,
+        var sendAs = file.sendAs ?? .document
+        var sendPath = exported.path, sendName = file.displayName, sendMime = file.mimeType, sendSize = exported.sizeBytes
+        let jpeg = exported.path + ".jpg"
+        defer { try? FileManager.default.removeItem(atPath: jpeg) }
+        if sendAs == .photo && Router.isHeic(file.displayName) {
+            if let conv = converter, conv.toJpeg(source: exported.path, dest: jpeg, maxBytes: settings.botPhotoMaxBytes),
+               let size = (try? FileManager.default.attributesOfItem(atPath: jpeg)[.size]) as? NSNumber, size.int64Value > 0 {
+                sendPath = jpeg; sendMime = "image/jpeg"; sendSize = size.int64Value
+                sendName = ((file.displayName as NSString).deletingPathExtension) + ".jpg"
+            } else {
+                sendAs = .document   // cannot convert: the original goes as a file, nothing is lost
+            }
+        }
+        let job = SendJob(chatId: settings.chatId!, threadId: file.topicId ?? rule.topicId, path: sendPath, displayName: sendName,
+                          mimeType: sendMime, sendAs: sendAs,
                           caption: Caption.build(displayName: file.displayName, takenAt: file.takenAt, ruleName: rule.name, sha256: hash),
-                          sizeBytes: exported.sizeBytes, width: file.width, height: file.height, durationMs: file.durationMs)
+                          sizeBytes: sendSize, width: file.width, height: file.height, durationMs: file.durationMs)
         let name = file.displayName
         if file.partCount > 1 { return await sendInParts(file, rule, exported: exported, hash: hash, job: job) }
         let route = file.route ?? .bot

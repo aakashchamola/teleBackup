@@ -23,9 +23,20 @@ TDLib is Swiftgram's build 1.8.69-025086e3 of the official sources, vendored as 
 ## Videos over 2 GB
 Cut at keyframes into parts of at most 1.9 GB without re-encoding (nothing is lost), then sent together as one album through the account (up to 10 parts, so about 19 GB). Needs free space on the phone about equal to the video while it is cut. A video sent in parts is never deleted by the app; delete it yourself after checking it in Telegram. Only MOV, MP4, M4V and 3GP are cut. Tested on a real sample video on the Mac: every part decodes, frames and duration add up.
 
+## Photos (HEIC) sent as media
+iPhone photos are HEIC. In "media" rules they are converted to JPEG on the phone (same pixels, orientation and date kept, quality lowered only if needed to stay under Telegram's 10 MB photo limit) and arrive as normal photos, like picking images in Telegram. If a photo cannot be converted, the original goes as a file; nothing is lost. "Original" rules always send the HEIC file as it is.
+
+## Looks after itself (for non-technical users)
+Once set up, nothing needs doing:
+- Failed uploads are retried automatically (2, 4, 8 ... minutes, up to 6 hours, 5 tries, then "skipped" with a note in History). Short waits are slept through while the app is running; longer ones wake the app in the background.
+- When Wi-Fi comes back, the queue restarts by itself.
+- A delay ("Delay 2h") ends by itself and the queue resumes.
+- A daily check scans the albums, prepares the delete list, tidies old history, and asks iOS for the next wake-up at the right time (the next retry, the end of a delay, or tomorrow).
+- Notifications match Android: progress with Pause, Paused with Delay/Resume, Paused until, warnings (Telegram account logged out, no Photos access, bot cannot post, topic deleted), and "Check before deleting". Tapping one opens the right screen.
+- iOS decides when background work really runs (usually overnight, on Wi-Fi). Opening the app also continues the queue at once.
+
 ## Not on iPhone yet
-- Document photo detector (Documents topic sorting): the switch exists but does nothing on iPhone yet.
-- HEIC photos sent as "media" go as files (Telegram shows them as documents); a JPEG conversion is not done yet. Rules made by the setup guide use "original" for Gallery, so this only affects other rules.
+- Documents sorting is not on iPhone (the switches are hidden).
 
 ## Installing without paying (free Apple ID)
 The build script makes an unsigned file: `tools/build_ios_ipa.sh` -> `app/build/ios-release/teleBackup-ios.ipa`.
@@ -36,10 +47,10 @@ Each person installs it with **AltStore** (altstore.io) or **Sideloadly** (sidel
 3. On the iPhone: Settings > General > VPN & Device Management > trust your Apple ID.
 4. Open teleBackup and follow the setup.
 
-**The free signature lasts 7 days.** After that the app stops opening until it is refreshed.
+**The free signature lasts 7 days. This is the one thing that is not hands-off.** After that the app stops opening until it is refreshed.
 - AltStore refreshes it by itself when the iPhone and the computer running AltServer are on the same Wi-Fi.
 - teleBackup shows a warning on Home and sends a notification two days before it runs out.
-- A paid Apple Developer account (99 USD a year) would make it last a year; not needed otherwise.
+- For people who will not touch it: keep AltServer running on an always-on computer at home (it refreshes the app by itself over Wi-Fi), or use SideStore (sidestore.io), which refreshes on the phone itself after one setup, or pay for an Apple Developer account (99 USD a year, a signature lasts a year).
 
 ## Building it
 Needs full Xcode, Flutter and CocoaPods (`brew install --cask flutter && brew install cocoapods`).

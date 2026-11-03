@@ -83,17 +83,9 @@ final class CoreHost: CoreHostApi {
 
     // MARK: status and controls
     func getStatus() async throws -> Status { await rt.buildStatus() }
-    func pause() async throws {
-        rt.control.pause()
-        if rt.tracker.running { rt.tracker.pausing = true } else { Notifier.shared.showHeld(queued: rt.store.queueCount(now: rt.clock.now(), allowBot: true, allowAccount: false).count) }
-        rt.pushStatus()
-    }
-    func resume() async throws { rt.control.resume(); Notifier.shared.clearHeld(); rt.startRun(); rt.pushStatus() }
-    func delay(minutes: Int64) async throws {
-        rt.control.delay(minutes: Int(minutes))
-        if rt.tracker.running { rt.tracker.pausing = true }
-        rt.pushStatus()
-    }
+    func pause() async throws { await MainActor.run { rt.pauseNow() } }
+    func resume() async throws { await MainActor.run { rt.resumeNow() } }
+    func delay(minutes: Int64) async throws { await MainActor.run { rt.delayNow(minutes: Int(minutes)) } }
     func scanNow(ruleId: Int64?) async throws { rt.startRun(scan: true) }
     func uploadNow(mobileDataOnce: Bool) async throws { if mobileDataOnce { rt.settings.mobileOnceUntilEmpty = true }; rt.startRun(scan: false) }
 
@@ -245,14 +237,15 @@ final class CoreHost: CoreHostApi {
     func setDelayOptions(minutes: [Int64]) async throws {
         let m = minutes.map(Int.init)
         guard Settings.isValidDelayOptions(m) else { throw fail("VALIDATION", "Use 1 to 4 options, each between 15 minutes and 24 hours.") }
-        rt.settings.delayOptionsMinutes = m; Notifier.shared.setup()
+        rt.settings.delayOptionsMinutes = m; Notifier.shared.registerCategories()
     }
     func setDefaultRetention(days: Int64) async throws {
         guard (1...365).contains(days) else { throw fail("VALIDATION", "Use 1 to 365 days.") }
         rt.settings.defaultRetentionDays = Int(days)
     }
     func setSetupStep(step: String) async throws { rt.settings.setupStep = step }
-    func finishSetup() async throws { rt.settings.setupDoneAt = rt.clock.now(); BackgroundWork.schedule(); rt.startRun() }
+    func finishSetup() async throws { rt.settings.setupDoneAt = rt.clock.now(); BackgroundWork.schedule(); rt.startRun()
+        _ = await Notifier.shared.requestAuthorization() }
     func exportRules() async throws -> String {
         let names = rt.settings.chatId.map { c in Dictionary(rt.store.topics(chatId: c).map { ($0.threadId, $0.name) }, uniquingKeysWith: { a, _ in a }) } ?? [:]
         let arr: [[String: Any]] = rt.rules.active().map { r in

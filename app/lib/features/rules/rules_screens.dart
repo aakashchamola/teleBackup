@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,18 @@ import '../../ui/strings.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/widgets.dart';
 
-String folderLabel(String path) => path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+String folderLabel(String path) {
+  // iPhone albums: "smart:recents", "smart:screenshots", "album:<id>|<title>"
+  if (path.startsWith('smart:')) {
+    const names = {'recents': 'Camera Roll', 'screenshots': 'Screenshots', 'videos': 'Videos', 'selfies': 'Selfies', 'panoramas': 'Panoramas'};
+    return names[path.substring(6)] ?? path.substring(6);
+  }
+  if (path.startsWith('album:')) {
+    final i = path.indexOf('|');
+    return i >= 0 ? path.substring(i + 1) : 'Album';
+  }
+  return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+}
 
 String typesWords(MediaTypes t) => switch (t) { MediaTypes.photos => 'photos', MediaTypes.videos => 'videos', MediaTypes.both => 'photos and videos' };
 
@@ -374,12 +386,14 @@ class _RuleEditState extends ConsumerState<RuleEditScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _pickFolder,
               ),
+              if (!Platform.isIOS) // albums have no folders inside
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _rule.includeSubfolders,
                 title: const Text(S.includeSubfolders),
                 onChanged: (v) { setState(() => _rule.includeSubfolders = v ?? false); _updatePreview(); },
               ),
+              if (!Platform.isIOS) // the document detector is not on iPhone
               SwitchListTile(
                 key: const Key('rule-sort-documents'),
                 contentPadding: EdgeInsets.zero,

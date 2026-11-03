@@ -2,6 +2,7 @@ import Foundation
 import Photos
 import CryptoKit
 import UniformTypeIdentifiers
+import ImageIO
 import TeleCore
 
 /// The iPhone's photo library as a `MediaSource`. An "album" is "smart:<name>" or "album:<localIdentifier>".
@@ -22,7 +23,8 @@ final class PhotoLibrarySource: MediaSource {
             return PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: s.subtype, options: nil).firstObject
         }
         if album.hasPrefix("album:") {
-            return PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [String(album.dropFirst(6))], options: nil).firstObject
+            let id = String(album.dropFirst(6)).components(separatedBy: "|").first ?? ""   // "album:<id>|<title>": the title is only for the screens
+            return PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil).firstObject
         }
         return nil
     }
@@ -81,7 +83,7 @@ final class PhotoLibrarySource: MediaSource {
         let r = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
         r.enumerateObjects { c, _, _ in
             let n = PHAsset.fetchAssets(in: c, options: nil).count
-            if n > 0 { out.append(("album:" + c.localIdentifier, c.localizedTitle ?? "Album", n)) }
+            if n > 0 { out.append(("album:\(c.localIdentifier)|\(c.localizedTitle ?? "Album")", c.localizedTitle ?? "Album", n)) }
         }
         return out
     }
@@ -133,5 +135,22 @@ struct Sha256Hasher: TeleCore.Hasher {
         var sha = SHA256()
         while true { let d = h.readData(ofLength: 1 << 20); if d.isEmpty { break }; sha.update(data: d) }
         return sha.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// HEIC/HEIF to JPEG with ImageIO. Orientation, date and location data travel with the picture. The quality goes down step by step
+/// until the file is small enough for Telegram's photo limit.
+struct HeicConverter: ImageConverter {
+    func toJpeg(source: String, dest: String, maxBytes: Int64) -> Bool {
+        guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: source) as CFURL, nil) else { return false }
+        for q in [0.92, 0.85, 0.75, 0.6, 0.45] {
+            try? FileManager.default.removeItem(atPath: dest)
+            guard let dst = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dest) as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
+            CGImageDestinationAddImageFromSource(dst, src, 0, [kCGImageDestinationLossyCompressionQuality: q] as CFDictionary)
+            guard CGImageDestinationFinalize(dst) else { return false }
+            if let size = (try? FileManager.default.attributesOfItem(atPath: dest)[.size]) as? NSNumber, size.int64Value > 0, size.int64Value <= maxBytes { return true }
+        }
+        try? FileManager.default.removeItem(atPath: dest)
+        return false
     }
 }

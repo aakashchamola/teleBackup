@@ -14,7 +14,9 @@ public struct RouterLimits {
 
 /// Picks the Telegram route and the send form for one file (docs/TELEGRAM.md section 1).
 public enum Router {
-    static let oddPhotoTypes: Set<String> = ["heic", "heif", "dng", "gif", "webp"]
+    static let heicTypes: Set<String> = ["heic", "heif"]
+    public static func isHeic(_ name: String) -> Bool { heicTypes.contains((name as NSString).pathExtension.lowercased()) }
+    static let oddPhotoTypes: Set<String> = ["dng", "gif", "webp"]
 
     public static func decide(sizeBytes: Int64, kind: FileKind, uploadAs: UploadAs, displayName: String,
                               width: Int?, height: Int?, limits: RouterLimits = RouterLimits()) -> RouteDecision {
@@ -33,6 +35,10 @@ public enum Router {
         case .photo:
             let ext = (displayName as NSString).pathExtension.lowercased()
             if oddPhotoTypes.contains(ext) { return .go(route, .document, note: "odd photo type") }
+            // iPhone photos are HEIC: they are converted to JPEG on the phone and sent as photos (like picking them in Telegram)
+            if heicTypes.contains(ext) {
+                return photoShapeOk(width, height) ? .go(route, .photo, note: "converted to JPEG") : .go(route, .document, note: "photo shape not allowed")
+            }
             if sizeBytes > limits.botPhotoMaxBytes { return .go(route, .document, note: "too big for a photo") }
             if !photoShapeOk(width, height) { return .go(route, .document, note: "photo shape not allowed") }
             return .go(route, .photo)

@@ -69,3 +69,10 @@ Newest at the end.
 - TeleTD: `sendMessageAlbum` through TDLib (first failure drops the unsent parts so a retry starts clean).
 - Runner: `AVVideoSplitter` (AVAssetReader/Writer pass-through, new part at the first keyframe after its share of the size). Checked on a generated 12 s video: 3 parts, all decode, 360 frames and 12.00 s in total.
 - Not tested: a real 2 GB+ file on a real iPhone, and a real album upload.
+
+## 2026-11-03 (night): HEIC photos, no documents on iPhone, self-care, Android-like notifications
+- HEIC/HEIF in media rules are converted to JPEG (ImageIO) and sent as photos; fallback to the original as a file. Checked with a generated 4032x3024 HEIC.
+- Documents sorting hidden on iPhone (rule switch, settings row); album names readable in the rules screen; "include subfolders" hidden.
+- Self-care: retry loop inside the run, reconnect on Wi-Fi, delay expiry (in-app timer + background wake), WakePlanner (next retry / end of delay / daily) feeding BGTaskScheduler, daily housekeeping. 43 core tests.
+- Notifications rewritten to match Android (progress, paused, paused until, warnings once each, check before deleting, routes on tap).
+- Open: test on a real iPhone; the free-Apple-ID 7-day signature is the one thing that is not automatic (see docs/IOS.md).

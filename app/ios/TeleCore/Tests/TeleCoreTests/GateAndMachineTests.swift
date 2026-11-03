@@ -127,7 +127,9 @@ final class GateAndMachineTests: XCTestCase {
     // router, verifier, pacer
     func testRouter() {
         XCTAssertEqual(Router.decide(sizeBytes: 1_000_000, kind: .photo, uploadAs: .media, displayName: "a.jpg", width: 4000, height: 3000), .go(.bot, .photo))
-        XCTAssertEqual(Router.decide(sizeBytes: 1_000_000, kind: .photo, uploadAs: .media, displayName: "a.HEIC", width: 4000, height: 3000), .go(.bot, .document, note: "odd photo type"))
+        XCTAssertEqual(Router.decide(sizeBytes: 1_000_000, kind: .photo, uploadAs: .media, displayName: "a.HEIC", width: 4000, height: 3000), .go(.bot, .photo, note: "converted to JPEG"))
+        XCTAssertEqual(Router.decide(sizeBytes: 1_000_000, kind: .photo, uploadAs: .media, displayName: "a.dng", width: 4000, height: 3000), .go(.bot, .document, note: "odd photo type"))
+        XCTAssertEqual(Router.decide(sizeBytes: 1_000_000, kind: .photo, uploadAs: .original, displayName: "a.HEIC", width: 4000, height: 3000), .go(.bot, .document))
         XCTAssertEqual(Router.decide(sizeBytes: 60_000_000, kind: .video, uploadAs: .media, displayName: "a.mov", width: nil, height: nil), .go(.account, .video))
         XCTAssertEqual(Router.decide(sizeBytes: 1000, kind: .photo, uploadAs: .original, displayName: "a.jpg", width: 1, height: 1), .go(.bot, .document))
         XCTAssertEqual(Router.decide(sizeBytes: 2_100_000_000, kind: .video, uploadAs: .media, displayName: "a.mov", width: nil, height: nil), .go(.account, .video, note: "cut into 2 parts", parts: 2))

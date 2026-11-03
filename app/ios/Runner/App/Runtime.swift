@@ -33,7 +33,16 @@ final class RunTracker: ProgressSink {
 final class NetworkWatcher {
     private let monitor = NWPathMonitor()
     private(set) var path: NWPath?
-    init() { monitor.pathUpdateHandler = { [weak self] p in self?.path = p }; monitor.start(queue: DispatchQueue(label: "net")) }
+    var onBecameUsable: (() -> Void)?
+    init() {
+        monitor.pathUpdateHandler = { [weak self] p in
+            guard let self = self else { return }
+            let was = self.path; self.path = p
+            // Wi-Fi (or any network) came back: carry on by itself
+            if p.status == .satisfied && (was?.status != .satisfied || was?.isExpensive != p.isExpensive) { self.onBecameUsable?() }
+        }
+        monitor.start(queue: DispatchQueue(label: "net"))
+    }
     var online: Bool { path?.status == .satisfied }
     var unmetered: Bool { online && !(path?.isExpensive ?? true) }
 }
@@ -62,7 +71,9 @@ final class Runtime {
     let network = NetworkWatcher()
     var events_: CoreEventsApi?
     private var runTask: Task<Void, Never>?
-    private var lastCleanRun: Int64 = 0
+    private var lastPrune: Int64 = 0
+    private var delayTimer: Task<Void, Never>?
+    private var pendingRoute: String?
 
     private init() {
         let fm = FileManager.default
@@ -96,6 +107,12 @@ final class Runtime {
         accountAuth.onChange = { [weak self] in self?.pushTelegramState(); self?.pushStatus() }
         tracker.onChange = { [weak self] in guard let self = self else { return }; self.pushStatus(); if self.tracker.running { Notifier.shared.progress(self.tracker) } }
         exporter.clearScratch()   // leftovers of a killed run
+        engine.converter = HeicConverter()
+        cleaner.notifier = Notifier.shared
+        network.onBecameUsable = { [weak self] in
+            guard let self = self, self.settings.setupDone else { return }
+            DispatchQueue.main.async { self.startRun(scan: false) }
+        }
     }
 
     // MARK: running
@@ -119,12 +136,77 @@ final class Runtime {
     }
 
     /// One run, start to end. Background tasks call this directly and wait for it.
+    /// It takes care of the rest by itself: a delay that has ended is lifted, failed files are tried again when their waiting time is over,
+    /// short waits are slept through, and the delete list, old history, warnings and the next wake-up are looked after at the end.
     func performRun(scan: Bool) async {
+        if control.resumeIfDelayExpired() { Notifier.shared.clearControl() }
         if scan { tracker.scanning = true; pushStatus(); for r in rules.active() where r.enabled { scanner.scan(r) }; tracker.scanning = false }
-        if networkAllows { _ = await engine.run(isStopped: { Task.isCancelled }) }
+        var rounds = 0
+        while rounds < 60 {
+            rounds += 1
+            if networkAllows { _ = await engine.run(isStopped: { Task.isCancelled }) }
+            guard !Task.isCancelled, control.allowsRun, networkAllows, let at = store.earliestRetryAt() else { break }
+            // a file that failed waits 2, 4, 8... minutes: sleep through the short waits, leave the long ones to a background wake-up
+            let wait = at - clock.now()
+            let patience = await MainActor.run { UIApplication.shared.applicationState == .active } ? 15 * Time.minute : 2 * Time.minute
+            if wait > patience { break }
+            var left = max(wait, 0) + 500
+            while left > 0 && !Task.isCancelled && control.allowsRun { try? await Task.sleep(nanoseconds: 1_000_000_000); left -= 1000 }
+        }
         cleaner.prepareReviews()
-        Notifier.shared.refreshAfterRun()
+        if clock.now() - lastPrune > Time.day { lastPrune = clock.now(); _ = store.prune(before: clock.now() - 90 * Time.day) }
+        afterRun()
     }
+
+    /// Notifications, warnings and the next wake-up, after every run.
+    func afterRun() {
+        Notifier.shared.clearProgress()
+        if settings.controlState != .running { Notifier.shared.showControlState() } else { Notifier.shared.clearControl() }
+        Task { [self] in
+            let att = await attention(now: clock.now(), waitingAccount: settings.accountState == .ready ? 0 : store.waitingAccountCount())
+            Notifier.shared.raiseAttention(att)
+        }
+        BackgroundWork.schedule()
+        armDelayTimer()
+        pushStatus()
+    }
+
+    // MARK: pause, delay, resume (buttons in the app and in notifications)
+
+    @MainActor func pauseNow() {
+        control.pause(); delayTimer?.cancel(); tracker.pausing = tracker.running
+        if !tracker.running { Notifier.shared.showControlState() }
+        BackgroundWork.schedule(); pushStatus()
+    }
+    @MainActor func delayNow(minutes: Int) {
+        control.delay(minutes: minutes); tracker.pausing = tracker.running
+        if !tracker.running { Notifier.shared.showControlState() }
+        armDelayTimer(); BackgroundWork.schedule(); pushStatus()
+    }
+    @MainActor func resumeNow() {
+        control.resume(); delayTimer?.cancel(); Notifier.shared.clearControl()
+        startRun(); BackgroundWork.schedule(); pushStatus()
+    }
+
+    /// While the app is alive, a delay ends on time by itself (a background wake-up covers the time the app is asleep).
+    func armDelayTimer() {
+        delayTimer?.cancel()
+        guard settings.controlState == .delayed, let until = settings.delayedUntil else { return }
+        delayTimer = Task { [weak self] in
+            let ms = max(until - (self?.clock.now() ?? until), 0) + 1000
+            try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
+            guard let self = self, !Task.isCancelled else { return }
+            if self.control.resumeIfDelayExpired() { Notifier.shared.clearControl(); await MainActor.run { self.startRun() } }
+        }
+    }
+
+    // MARK: notification taps
+
+    func openRoute(_ route: String) {
+        guard let ev = events_ else { pendingRoute = route; return }
+        Task { @MainActor in try? await ev.onOpenRoute(route: route) }
+    }
+    func flushPendingRoute() { if let r = pendingRoute { pendingRoute = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.openRoute(r) } } }
 
     var isRunning: Bool { runTask != nil }
 

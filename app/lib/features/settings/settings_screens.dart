@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,6 +59,7 @@ class SettingsScreen extends ConsumerWidget {
               ref.invalidate(settingsProvider);
             },
           ),
+          if (!Platform.isIOS) // the document detector is not on iPhone
           ListTile(
             key: const Key('documents-topic'),
             title: const Text(S.documentsTopic),

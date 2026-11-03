@@ -1,6 +1,7 @@
 import Foundation
 import BackgroundTasks
 import UIKit
+import TeleCore
 
 /// What iOS lets a backup app do in the background (no foreground service exists on iPhone):
 /// - a processing task (usually overnight, on power and Wi-Fi) that scans, uploads and prepares the delete list;
@@ -15,19 +16,28 @@ enum BackgroundWork {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshId, using: nil) { task in handle(task as! BGAppRefreshTask) }
     }
 
+    /// Asks iOS to wake the app at the next time something is due: a failed file's retry, the end of a delay, or the daily check.
+    /// iOS decides the exact moment (usually when the phone is idle, on Wi-Fi or charging); it never runs earlier than asked.
     static func schedule() {
+        let rt = Runtime.shared
+        guard rt.settings.setupDone else { return }
+        let at = WakePlanner.nextWake(store: rt.store, settings: rt.settings, now: rt.clock.now())
+        let date = Date(timeIntervalSince1970: Double(at) / 1000)
+        let sooner = min(date, Date(timeIntervalSinceNow: 30 * 60))
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: processId)
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: refreshId)
         let p = BGProcessingTaskRequest(identifier: processId)
         p.requiresNetworkConnectivity = true; p.requiresExternalPower = false
-        p.earliestBeginDate = Date(timeIntervalSinceNow: 60 * 60)
+        p.earliestBeginDate = date
         try? BGTaskScheduler.shared.submit(p)
         let r = BGAppRefreshTaskRequest(identifier: refreshId)
-        r.earliestBeginDate = Date(timeIntervalSinceNow: 30 * 60)
+        r.earliestBeginDate = sooner
         try? BGTaskScheduler.shared.submit(r)
     }
 
     private static func handle(_ task: BGTask) {
-        schedule()   // always line up the next window first
         let rt = Runtime.shared
+        schedule()   // always line up the next window first
         let work = Task {
             if !rt.isRunning { await rt.performRun(scan: true) }
             task.setTaskCompleted(success: true)

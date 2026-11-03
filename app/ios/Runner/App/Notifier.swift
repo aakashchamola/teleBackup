@@ -3,58 +3,126 @@ import UIKit
 import UserNotifications
 import TeleCore
 
-/// Local notifications: progress with Pause / Delay / Resume buttons, and "ready to delete".
-final class Notifier: NSObject, UNUserNotificationCenterDelegate {
+/// All notifications, the same set as on Android (docs/UI.md section 8):
+/// progress with Pause, "Paused" with Delay / Resume, "Paused until", things only the person can fix, and "Check before deleting".
+/// iPhone has no foreground service, so progress is shown only while the app is in the background; the Home screen shows it otherwise.
+final class Notifier: NSObject, UNUserNotificationCenterDelegate, ReviewNotifier {
     static let shared = Notifier()
     private let center = UNUserNotificationCenter.current()
-    private var lastPost = Date.distantPast
-    static let progressId = "tb.progress", reviewId = "tb.review", heldId = "tb.held", expiryId = "tb.expiry"
+    private var lastProgress = Date.distantPast
+    static let progressId = "tb.progress", controlId = "tb.control", expiryId = "tb.expiry", attentionPrefix = "tb.attention.", reviewPrefix = "tb.review."
+    private static let attentionKinds: [AttentionKind] = [.loginExpired, .allFilesLost, .botProblem, .topicMissing]
+
+    // MARK: setup
 
     func setup() {
         center.delegate = self
+        registerCategories()
+    }
+
+    /// Delay buttons come from the settings, so this is called again when they change.
+    func registerCategories() {
         let rt = Runtime.shared
-        let opts = rt.settings.delayOptionsMinutes
-        var actions = [UNNotificationAction(identifier: "pause", title: "Pause", options: [])]
-        for (i, m) in opts.prefix(2).enumerated() { actions.append(UNNotificationAction(identifier: "delay\(i)", title: "Delay \(ControlService.describe(m).replacingOccurrences(of: " hours", with: "h").replacingOccurrences(of: " hour", with: "h"))", options: [])) }
-        let running = UNNotificationCategory(identifier: "running", actions: actions, intentIdentifiers: [], options: [])
-        let held = UNNotificationCategory(identifier: "held", actions: [UNNotificationAction(identifier: "resume", title: "Resume", options: [])], intentIdentifiers: [], options: [])
-        center.setNotificationCategories([running, held])
+        func delayTitle(_ m: Int) -> String { "Delay " + Self.delayLabel(m) }
+        let pause = UNNotificationAction(identifier: "pause", title: "Pause", options: [])
+        let delays = rt.settings.delayOptionsMinutes.prefix(2).enumerated().map { UNNotificationAction(identifier: "delay\($0.offset)", title: delayTitle($0.element), options: []) }
+        let resume = UNNotificationAction(identifier: "resume", title: "Resume", options: [])
+        let resumeNow = UNNotificationAction(identifier: "resume", title: "Resume now", options: [])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: "running", actions: [pause], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: "paused", actions: delays + [resume], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: "delayed", actions: [resumeNow], intentIdentifiers: [], options: []),
+        ])
     }
 
     func requestAuthorization() async -> Bool { (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false }
 
-    func progress(_ t: RunTracker) {
-        guard UIApplication.shared.applicationState != .active, Date().timeIntervalSince(lastPost) > 3 else { return }
-        lastPost = Date()
+    // MARK: formats
+
+    static func size(_ b: Int64) -> String { ByteCountFormatter.string(fromByteCount: b, countStyle: .file) }
+    static func delayLabel(_ m: Int) -> String { m % 60 == 0 ? "\(m / 60)h" : "\(m)m" }
+    static func clock(_ ms: Int64) -> String {
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
+        return f.string(from: Date(timeIntervalSince1970: Double(ms) / 1000))
+    }
+
+    private func post(_ id: String, title: String, body: String, category: String? = nil, route: String? = nil, sound: Bool = false, passive: Bool = false) {
         let c = UNMutableNotificationContent()
-        c.title = t.pausing ? "Pausing after this file…" : "Backing up \(t.filesDone + 1) of \(max(t.filesTotal, t.filesDone + 1))"
-        c.body = t.currentFileName ?? ""
-        c.categoryIdentifier = "running"; c.interruptionLevel = .passive
-        center.add(UNNotificationRequest(identifier: Self.progressId, content: c, trigger: nil))
+        c.title = title; c.body = body
+        if let cat = category { c.categoryIdentifier = cat }
+        if let r = route { c.userInfo = ["route": r] }
+        if sound { c.sound = .default }
+        if passive { c.interruptionLevel = .passive }
+        center.add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+    }
+
+    // MARK: progress
+
+    /// "teleBackup · Backing up" with the file count, or the bytes of a big file; "Pausing..." while the current file finishes.
+    func progress(_ t: RunTracker) {
+        guard UIApplication.shared.applicationState != .active, Date().timeIntervalSince(lastProgress) > 2 else { return }
+        guard t.running else { clearProgress(); return }
+        lastProgress = Date()
+        if t.pausing {
+            post(Self.progressId, title: "teleBackup · Pausing...", body: "Finishing \(t.currentFileName ?? "this file") first.", route: "home", passive: true); return
+        }
+        let name = t.currentFileName ?? "Starting..."
+        if let total = t.bytesTotal, let done = t.bytesDone, total >= 50_000_000 {
+            post(Self.progressId, title: "teleBackup · Backing up", body: "\(name) · \(Self.size(done)) of \(Self.size(total)) (\(Int(done * 100 / max(total, 1)))%)", category: "running", route: "home", passive: true)
+        } else {
+            post(Self.progressId, title: "teleBackup · Backing up", body: "\(t.filesDone + 1) of \(max(t.filesTotal, t.filesDone + 1)) · \(name)", category: "running", route: "home", passive: true)
+        }
     }
 
     func clearProgress() { center.removeDeliveredNotifications(withIdentifiers: [Self.progressId]) }
 
-    func refreshAfterRun() {
-        clearProgress()
+    // MARK: paused / delayed
+
+    /// Shows Paused (with Delay and Resume buttons) or Paused until, or removes it when nothing is held.
+    func showControlState() {
         let rt = Runtime.shared
-        let waiting = rt.store.allWaitingReviews()
-        guard !waiting.isEmpty else { return }
-        let n = waiting.reduce(0) { $0 + $1.fileCount }
-        let bytes = waiting.reduce(Int64(0)) { $0 + $1.totalBytes }
-        let c = UNMutableNotificationContent()
-        c.title = "\(n) backed-up file\(n == 1 ? "" : "s") ready to delete"
-        c.body = "Open teleBackup to free \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)). iPhone will ask you to confirm."
-        c.sound = .default
-        center.add(UNNotificationRequest(identifier: Self.reviewId, content: c, trigger: nil))
+        let waiting = rt.store.queueCount(now: rt.clock.now(), allowBot: true, allowAccount: rt.settings.accountState == .ready).count
+        switch rt.settings.controlState {
+        case .paused: post(Self.controlId, title: "teleBackup · Paused", body: "\(waiting) file\(waiting == 1 ? "" : "s") waiting", category: "paused", route: "home", passive: true)
+        case .delayed: post(Self.controlId, title: "teleBackup · Paused until \(Self.clock(rt.settings.delayedUntil ?? rt.clock.now()))", body: "Resumes by itself", category: "delayed", route: "home", passive: true)
+        case .running: clearControl()
+        }
+    }
+    func clearControl() { center.removeDeliveredNotifications(withIdentifiers: [Self.controlId]) }
+
+    // MARK: things only the person can fix
+
+    /// Posts each problem once, and removes the notification when the problem is gone.
+    func raiseAttention(_ list: [Attention]) {
+        let key = "ios.raised"
+        let rt = Runtime.shared
+        let before = Set((rt.store.setting(key) ?? "").split(separator: ",").map(String.init))
+        var now = Set<String>()
+        for a in list where Self.attentionKinds.contains(a.kind) {
+            let k = "\(a.kind)" + (a.ruleId.map { ":\($0)" } ?? "")
+            now.insert(k)
+            if before.contains(k) { continue }
+            let (title, route): (String, String)
+            switch a.kind {
+            case .loginExpired: (title, route) = ("Telegram account logged out", "login")
+            case .allFilesLost: (title, route) = ("teleBackup can't reach your photos", "perm:files")
+            case .botProblem: (title, route) = ("teleBackup can't post to your group", "telegram")
+            default: (title, route) = ("A topic was deleted", "rule:\(a.ruleId ?? 0)")
+            }
+            post(Self.attentionPrefix + k, title: title, body: a.text, route: route, sound: true)
+        }
+        for k in before.subtracting(now) { center.removeDeliveredNotifications(withIdentifiers: [Self.attentionPrefix + k]) }
+        rt.store.put(key, now.sorted().joined(separator: ","))
     }
 
-    func showHeld(queued: Int) {
-        let c = UNMutableNotificationContent()
-        c.title = "Backup is paused"; c.body = queued > 0 ? "\(queued) files are waiting." : "Nothing is waiting."; c.categoryIdentifier = "held"; c.interruptionLevel = .passive
-        center.add(UNNotificationRequest(identifier: Self.heldId, content: c, trigger: nil))
+    // MARK: delete check
+
+    func reviewWaiting(rule: CRule, review: ReviewRecord) {
+        post(Self.reviewPrefix + String(rule.id), title: "Check before deleting",
+             body: "\(rule.name): \(review.fileCount) files (\(Self.size(review.totalBytes))) are ready to delete from your phone. iPhone will ask you to confirm.",
+             route: "review:\(rule.id)", sound: true)
     }
-    func clearHeld() { center.removeDeliveredNotifications(withIdentifiers: [Self.heldId]) }
+    func clearReview(ruleId: Int64) { center.removeDeliveredNotifications(withIdentifiers: [Self.reviewPrefix + String(ruleId)]) }
 
     /// The free Apple ID signature lasts 7 days: remind the person two days before.
     func scheduleExpiryReminder(expiresAt: Int64) {
@@ -68,22 +136,23 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center.add(UNNotificationRequest(identifier: Self.expiryId, content: c, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
     }
 
-    // buttons
+    // MARK: buttons and taps
+
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let rt = Runtime.shared
         switch response.actionIdentifier {
-        case "pause": rt.control.pause(); rt.tracker.pausing = rt.tracker.running; showHeld(queued: rt.store.queueCount(now: rt.clock.now(), allowBot: true, allowAccount: false).count)
+        case "pause": await MainActor.run { rt.pauseNow() }
         case "delay0", "delay1":
             let i = response.actionIdentifier == "delay0" ? 0 : 1
-            if let m = rt.settings.delayOptionsMinutes[safe: i] { rt.control.delay(minutes: m); rt.tracker.pausing = rt.tracker.running }
-        case "resume": rt.control.resume(); clearHeld(); await MainActor.run { rt.startRun() }
+            if let m = rt.settings.delayOptionsMinutes[safe: i] { await MainActor.run { rt.delayNow(minutes: m) } }
+        case "resume": await MainActor.run { rt.resumeNow() }
         default:
-            if response.notification.request.identifier == Self.reviewId { try? await rt.events_?.onOpenRoute(route: "/rules") }
+            let route = response.notification.request.content.userInfo["route"] as? String ?? (response.notification.request.identifier.hasPrefix(Self.reviewPrefix) ? "home" : "home")
+            await MainActor.run { rt.openRoute(route) }
         }
-        rt.pushStatus()
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent n: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .list] }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent n: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .list, .sound] }
 }
 
 extension Array { subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil } }
