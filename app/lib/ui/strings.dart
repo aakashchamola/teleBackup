@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'format.dart';
 /// Every word the person reads, in one place (docs/UI.md). English only in version 1;
 /// another language later means translating this file.
@@ -29,12 +31,15 @@ class S {
   static const permissionsTitle = 'Permissions';
   static const permNotifications = 'Notifications';
   static const permNotificationsWhy = 'To show backup progress.';
-  static const permFiles = 'All files access';
-  static const permFilesWhy =
-      'To read your folders and delete files only after they are backed up. Android opens a settings page: turn on teleBackup there.';
-  static const permBackground = 'Run in background';
-  static const permBackgroundWhy =
-      'So Android does not stop the backup. Pick "Allow" or "Don\'t optimise" on the next screen.';
+  static final bool _ios = Platform.isIOS;
+  static final permFiles = _ios ? 'Photos access' : 'All files access';
+  static final permFilesWhy = _ios
+      ? 'To read your photos and videos, and to delete them only after they are backed up. Choose "Allow Full Access" (not "Limited").'
+      : 'To read your folders and delete files only after they are backed up. Android opens a settings page: turn on teleBackup there.';
+  static final permBackground = _ios ? 'Background App Refresh' : 'Run in background';
+  static final permBackgroundWhy = _ios
+      ? 'So iPhone lets the backup carry on when the app is closed. In Settings, turn on Background App Refresh for teleBackup.'
+      : 'So Android does not stop the backup. Pick "Allow" or "Don\'t optimise" on the next screen.';
   static const allow = 'Allow';
   static const openSettings = 'Open settings';
   static const makerLine = 'Your phone may also need Auto-start turned on.';
@@ -261,7 +266,7 @@ class S {
   static const checkingFolders = 'Checking folders';
   static const waitingForWifi = 'Waiting for Wi-Fi';
   static const doneForToday = 'Done for today';
-  static const doneForTodayLine = 'Android limits background work. Continues in a few hours.';
+  static final doneForTodayLine = _ios ? 'iPhone limits background work. Open the app or charge the phone on Wi-Fi to continue.' : 'Android limits background work. Continues in a few hours.';
   static const allBackedUp = 'All backed up';
   static const nextCheckTonight = 'Next check tonight.';
   static const resumesByItself = 'Resumes by itself.';

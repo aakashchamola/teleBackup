@@ -49,3 +49,10 @@ Newest at the end.
 - Built and tested on the phone: TDLib account path (community AAR 1.8.67), oldest-first queue, albums per day, document sorting per rule, Documents topic, notification fixes (clear at run end, survive overlapping runs), Room migrations 2 and 3, video splitting for files over 2 GB, scratch cleanup behind the one delete door.
 - Release key made (`C:\Users\aakas\.telebackup\release.jks`, vault `TELEBACKUP_RELEASE_KEY_PASSWORD`); signed release build verified. Owner still has to back the .jks up.
 - Gallery backup started on the owner's phone (upload-only, oldest first).
+
+## 2026-11-03: iPhone version started (on the Mac)
+- Installed Flutter 3.47.9 and CocoaPods; Xcode 26.6 selected. `flutter create --platforms=ios` added `app/ios`.
+- New Swift package `app/ios/TeleCore`: models, state machine, delete gate, router, verifier, pacer, Bot API client, SQLite store, settings, rules, scanner, upload engine, cleaner (batched delete behind iOS's own prompt). 24 tests pass.
+- Runner app code: Photos library source, exporter, batch deleter, Keychain, notifications with Pause/Delay/Resume, BGTasks, bridge implementation. Builds for simulator and device; launches in the iPhone 16 simulator.
+- `tools/build_ios_ipa.sh` makes an unsigned .ipa for AltStore/Sideloadly (free Apple ID, 7-day signature). See docs/IOS.md.
+- Open: test on a real iPhone; TDLib for videos over 50 MB; HEIC to JPEG for media uploads; document detector.

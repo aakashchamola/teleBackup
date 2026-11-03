@@ -8,6 +8,8 @@ Built for the owner and their family. Each person uses their own Telegram accoun
 
 **Using it:** read [docs/USER_GUIDE.md](docs/USER_GUIDE.md): install, first setup, rules, deleting, troubleshooting.
 
+**iPhone:** a version for iPhone is in `app/ios` (same screens, reduced background; one confirmation to delete). See [docs/IOS.md](docs/IOS.md).
+
 ## Read in this order
 0. [docs/USER_GUIDE.md](docs/USER_GUIDE.md): the complete guide for people who use the app.
 1. [docs/PLAN.md](docs/PLAN.md): what the app does and every decision made, with the reasons.

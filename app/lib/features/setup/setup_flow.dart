@@ -156,7 +156,7 @@ class _PermissionsState extends ConsumerState<_Permissions> with WidgetsBindingO
             child: Row(children: [
               const Expanded(child: Text(S.makerLine)),
               TextButton(
-                onPressed: () => showDialog<void>(context: context, builder: (c) => AlertDialog(title: const Text(S.permBackground), content: Text(makerHelp(v!.makerGuide!)), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text(S.close))])),
+                onPressed: () => showDialog<void>(context: context, builder: (c) => AlertDialog(title: Text(S.permBackground), content: Text(makerHelp(v!.makerGuide!)), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text(S.close))])),
                 child: const Text(S.makerHow),
               ),
             ]),
