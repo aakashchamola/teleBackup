@@ -32,6 +32,8 @@ public final class UploadEngine {
     let store: Store, settings: Settings, events: EventLog, clock: Clock, pacer: Pacer
     let exporter: AssetExporter, hasher: Hasher, sender: TelegramSender, control: ControlService
     let account: TelegramSender?
+    public var splitter: VideoSplitter?
+    public var scratchDir: String?
     private var accountStopped = false
     private var botStopped = false
     public weak var progress: ProgressSink?
@@ -131,6 +133,7 @@ public final class UploadEngine {
                           caption: Caption.build(displayName: file.displayName, takenAt: file.takenAt, ruleName: rule.name, sha256: hash),
                           sizeBytes: exported.sizeBytes, width: file.width, height: file.height, durationMs: file.durationMs)
         let name = file.displayName
+        if file.partCount > 1 { return await sendInParts(file, rule, exported: exported, hash: hash, job: job) }
         let route = file.route ?? .bot
         guard let chosen = route == .account ? account : sender else {
             _ = try? store.apply(file.id, .networkStop, now: clock.now())
@@ -139,6 +142,54 @@ public final class UploadEngine {
         }
         let result = await chosen.send(job) { [weak self] s, t in self?.progress?.fileProgress(name: name, done: s, total: t) }
         return complete(file.id, result, job: job, hash: hash)
+    }
+
+    /// A video over 2 GB: cut at keyframes, the parts go up together as one album and are never deleted by the app.
+    func sendInParts(_ file: FileRecord, _ rule: Rule, exported: ExportedFile, hash: String, job base: SendJob) async -> Step {
+        func fail(_ why: String) -> Step { handleFailure(file, rule, .badRequest(why)) }
+        guard let sender = account else {
+            _ = try? store.apply(file.id, .networkStop, now: clock.now()); accountStopped = true; return .retry
+        }
+        guard let cutter = splitter, let dir = scratchDir else { return fail("cutting a big video into parts is not available") }
+        let outDir = dir + "/split-\(file.id)"
+        defer { try? FileManager.default.removeItem(atPath: outDir) }
+        let name = file.displayName
+        let cut = await cutter.split(source: exported.path, maxPartBytes: SplitPlan.partMaxBytes, outDir: outDir) { [weak self] d, t in
+            self?.progress?.fileProgress(name: "\(name) (cutting)", done: d, total: t)
+        }
+        if Task.isCancelled { _ = try? store.apply(file.id, .networkStop, now: clock.now()); return .retry }
+        guard case .parts(let paths) = cut else { if case .failed(let r) = cut { return fail("it could not be cut into parts: \(r)") }; return fail("it could not be cut") }
+        let n = paths.count
+        let jobs: [SendJob] = paths.enumerated().map { i, p in
+            let pn = SplitPlan.partName(file.displayName, index: i, parts: n)
+            let size = ((try? FileManager.default.attributesOfItem(atPath: p)[.size]) as? NSNumber)?.int64Value ?? 0
+            return SendJob(chatId: base.chatId, threadId: base.threadId, path: p, displayName: pn, mimeType: "video/mp4", sendAs: file.sendAs ?? .video,
+                           caption: Caption.build(displayName: pn, takenAt: file.takenAt, ruleName: rule.name, sha256: hash), sizeBytes: size,
+                           width: file.width, height: file.height, durationMs: nil)
+        }
+        progress?.fileStarted(name: "\(file.displayName) (\(n) parts)", bytesTotal: file.sizeBytes, filesDone: 0, filesTotal: 0)
+        await pacer.awaitSlot(.account)
+        let label = "\(file.displayName) (\(n) parts)"
+        let result = await sender.sendAlbum(jobs) { [weak self] s, t in self?.progress?.fileProgress(name: label, done: s, total: t) }
+        switch result {
+        case .failed(let e): return handleFailure(file, rule, e)
+        case .unsupported: return fail("sending parts together is not available")
+        case .sent(let msgs):
+            guard msgs.count == n else { return fail("the album answer did not match its parts") }
+            let bad = zip(jobs, msgs).compactMap { j, m -> String? in if case .mismatch(let r) = Verifier.checkReply(j, m) { return r }; return nil }.first
+            let now = clock.now()
+            guard var uploaded = try? store.apply(file.id, .sent(msgs[0], sha256: hash), now: now) else { return .retry }
+            uploaded.partCount = n; store.updateDetails(uploaded)
+            events.add(.uploaded, "\(file.displayName) uploaded in \(n) parts", ruleId: rule.id, fileId: file.id, bytes: file.sizeBytes)
+            if let why = bad {
+                _ = try? store.apply(file.id, .replyMismatch(why), now: clock.now(), maxAttempts: settings.maxAttempts, jitter: Double.random(in: 0...1))
+                events.add(.verifyFailed, "\(file.displayName): Telegram reply did not match (\(why))", ruleId: rule.id, fileId: file.id)
+            } else {
+                _ = try? store.apply(file.id, .replyOk(deleteAfter: nil), now: clock.now())   // never deleted by the app: no delete date
+                events.add(.verified, "\(file.displayName) checked in Telegram (\(n) parts)", ruleId: rule.id, fileId: file.id)
+            }
+            return .done
+        }
     }
 
     /// Records what Telegram answered. Shared by the foreground loop and the background-session path.

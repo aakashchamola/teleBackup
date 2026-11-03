@@ -89,6 +89,8 @@ final class Runtime {
                               account: AccountSender(auth: accountAuth, gateway: gateway))
         cleaner = Cleaner(store: store, settings: settings, events: events, clock: clock, exporter: exporter, deleter: PhotoBatchDeleter())
         engine.progress = tracker
+        engine.splitter = AVVideoSplitter()
+        engine.scratchDir = fm.temporaryDirectory.appendingPathComponent("scratch").path
         let recheck = AccountRecheck(auth: accountAuth, gateway: gateway)
         cleaner.recheck = { await recheck.recheck($0) }
         accountAuth.onChange = { [weak self] in self?.pushTelegramState(); self?.pushStatus() }

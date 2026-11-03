@@ -73,4 +73,9 @@ public enum SendResult: Equatable {
 
 public protocol TelegramSender {
     func send(_ job: SendJob, progress: @escaping (_ sent: Int64, _ total: Int64) -> Void) async -> SendResult
+    /// 2 to 10 photos or videos shown together (a video cut into parts). Default: not supported.
+    func sendAlbum(_ jobs: [SendJob], progress: @escaping (_ sent: Int64, _ total: Int64) -> Void) async -> AlbumResult
+}
+public extension TelegramSender {
+    func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult { .unsupported }
 }

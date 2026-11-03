@@ -15,6 +15,12 @@ final class FakeGateway: TdGateway {
         sent.append(job)
         return sendResult ?? .sent(SentMessage(chatId: job.chatId, threadId: job.threadId, messageId: 500, fileUniqueId: "u", size: job.sizeBytes, width: job.width, height: job.height, durationMs: job.durationMs, kind: job.sendAs))
     }
+    var albums: [[SendJob]] = [], albumFail: TgError?
+    func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult {
+        albums.append(jobs)
+        if let e = albumFail { return .failed(e) }
+        return .sent(jobs.enumerated().map { i, j in SentMessage(chatId: j.chatId, threadId: j.threadId, messageId: Int64(900 + i), fileUniqueId: "u\(i)", size: j.sizeBytes, width: j.width, height: j.height, durationMs: nil, kind: j.sendAs) })
+    }
     func fetch(chatId: Int64, botApiMessageId: Int64) async -> TdFetch { fetchAnswer }
     func logOut() async { auth = .loggedOut }
     func close() { auth = .closed }
@@ -107,5 +113,83 @@ final class BigVideoPipelineTests: XCTestCase {
         src.items = [MediaItem(path: "big", displayName: "big.MOV", mimeType: "video/quicktime", sizeBytes: 60_000_000, modifiedAt: 1, takenAt: 1, width: 1, height: 1, durationMs: 1, kind: .video)]
         LibraryScanner(source: src, store: store, settings: settings, events: events, clock: clock).scan(rule)
         let out = await engine.run(); XCTAssertEqual(out.reason, .nothingToSend); XCTAssertEqual(store.waitingAccountCount(), 1)
+    }
+}
+
+struct FakeSplitter: VideoSplitter {
+    var parts = 2, fail: String?
+    func split(source: String, maxPartBytes: Int64, outDir: String, onProgress: @escaping (Int64, Int64) -> Void) async -> SplitResult {
+        if let f = fail { return .failed(f) }
+        try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+        return .parts((0..<parts).map { i in let p = outDir + "/p\(i).mp4"; try? Data(count: 10).write(to: URL(fileURLWithPath: p)); return p })
+    }
+}
+
+final class SplitTests: XCTestCase {
+    func testPlan() {
+        XCTAssertEqual(SplitPlan.partsNeeded(2_100_000_000), 2); XCTAssertEqual(SplitPlan.partsNeeded(5_000_000_000), 3); XCTAssertEqual(SplitPlan.partsNeeded(100), 1)
+        XCTAssertEqual(SplitPlan.partName("clip.MOV", index: 0, parts: 3), "clip (part 1 of 3).MOV")
+        XCTAssertTrue(SplitPlan.canSplit("a.mov")); XCTAssertFalse(SplitPlan.canSplit("a.mkv"))
+        XCTAssertLessThan(SplitPlan.targetPartBytes(4_000_000_000, parts: 3), SplitPlan.partMaxBytes)
+    }
+    func testRouterCutsBigVideosOnly() {
+        XCTAssertEqual(Router.decide(sizeBytes: 3_000_000_000, kind: .video, uploadAs: .media, displayName: "a.MOV", width: 1, height: 1), .go(.account, .video, note: "cut into 2 parts", parts: 2))
+        XCTAssertEqual(Router.decide(sizeBytes: 3_000_000_000, kind: .video, uploadAs: .original, displayName: "a.MOV", width: 1, height: 1), .go(.account, .document, note: "cut into 2 parts", parts: 2))
+        XCTAssertEqual(Router.decide(sizeBytes: 3_000_000_000, kind: .video, uploadAs: .media, displayName: "a.mkv", width: 1, height: 1), .skip("Too big for Telegram (over 2 GB)"))
+        XCTAssertEqual(Router.decide(sizeBytes: 3_000_000_000, kind: .photo, uploadAs: .media, displayName: "a.jpg", width: 1, height: 1), .skip("Too big for Telegram (over 2 GB)"))
+        XCTAssertEqual(Router.decide(sizeBytes: 30_000_000_000, kind: .video, uploadAs: .media, displayName: "a.mov", width: 1, height: 1), .skip("Too big for Telegram (over 2 GB)"))   // needs more than 10 parts
+    }
+
+    func setup(splitter: VideoSplitter?) throws -> (Store, Settings, UploadEngine, FakeGateway, FakeSource, Rule, LibraryScanner, Cleaner, FixedClock) {
+        let store = try Store.inMemory(); let settings = Settings(store); let clock = FixedClock(10 * Time.day); let events = EventLog(store, clock)
+        let rules = RuleService(store: store, settings: settings, events: events, clock: clock)
+        let src = FakeSource(); let g = FakeGateway(); g.auth = .ready(name: "T", phoneMasked: nil)
+        settings.chatId = -100; settings.accountState = .ready
+        let auth = AccountAuth(gateway: g, settings: settings, secrets: MemSecrets(), folders: { ("a", "b") }, settleMs: 100)
+        let ex = FakeExporter(src)
+        let engine = UploadEngine(store: store, settings: settings, events: events, clock: clock, pacer: Pacer(clock: clock, botPerMinute: 6000, burst: 100, accountMinGapMs: 0),
+                                  exporter: ex, hasher: FakeHasher(), sender: FakeSender(), control: ControlService(settings: settings, events: events, clock: clock), account: AccountSender(auth: auth, gateway: g))
+        engine.splitter = splitter; engine.scratchDir = NSTemporaryDirectory() + "split-test-\(UUID().uuidString)"
+        var r = Rule(name: "Videos", folderPath: "smart:videos"); r.topicId = 3; r.startMode = .everything; r.mediaTypes = .videos
+        r.mode = .uploadAndDelete; r.deleteWarningAcceptedAt = 1; r.dryRun = false
+        let rule = try rules.save(r)
+        return (store, settings, engine, g, src, rule, LibraryScanner(source: src, store: store, settings: settings, events: events, clock: clock),
+                Cleaner(store: store, settings: settings, events: events, clock: clock, exporter: ex, deleter: FakeDeleter()), clock)
+    }
+    func hugeVideo(_ src: FakeSource) { src.items = [MediaItem(path: "huge", displayName: "huge.MOV", mimeType: "video/quicktime", sizeBytes: 100, modifiedAt: 1, takenAt: 1, width: 1920, height: 1080, durationMs: 60000, kind: .video)] }
+
+    func testHugeVideoIsCutSentAsAlbumAndNeverDeleted() async throws {
+        let (store, _, engine, g, src, rule, scanner, cleaner, clock) = try setup(splitter: FakeSplitter(parts: 3))
+        hugeVideo(src)
+        // the scanner decides from the size: make the row a 3-part video as a 5 GB file would be
+        scanner.scan(rule)
+        var f = try XCTUnwrap(store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 1).first)
+        f.route = .account; f.sendAs = .video; f.partCount = 3; store.updateDetails(f)
+        let out = await engine.run()
+        XCTAssertEqual(out.filesDone, 1)
+        XCTAssertEqual(g.albums.count, 1); XCTAssertEqual(g.albums[0].count, 3)
+        XCTAssertEqual(g.albums[0].map { $0.displayName }, ["huge (part 1 of 3).MOV", "huge (part 2 of 3).MOV", "huge (part 3 of 3).MOV"])
+        let done = try XCTUnwrap(store.file(id: f.id))
+        XCTAssertEqual(done.state, .verified); XCTAssertEqual(done.partCount, 3); XCTAssertNil(done.deleteAfter)
+        clock.t += 400 * Time.day
+        XCTAssertEqual(cleaner.prepareReviews(), 0)   // a file sent in parts is never offered for delete
+    }
+    func testCutFailureIsRetriedNotLost() async throws {
+        let (store, _, engine, g, src, rule, scanner, _, _) = try setup(splitter: FakeSplitter(fail: "no keyframes"))
+        hugeVideo(src); scanner.scan(rule)
+        var f = try XCTUnwrap(store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 1).first)
+        f.route = .account; f.sendAs = .video; f.partCount = 2; store.updateDetails(f)
+        _ = await engine.run()
+        let after = try XCTUnwrap(store.file(id: f.id))
+        XCTAssertTrue([.failed, .queued].contains(after.state)); XCTAssertEqual(after.attempts, 1); XCTAssertTrue(g.albums.isEmpty)
+    }
+    func testAlbumRefusalKeepsFileForLater() async throws {
+        let (store, _, engine, g, src, rule, scanner, _, _) = try setup(splitter: FakeSplitter(parts: 2))
+        g.albumFail = .floodWait(seconds: 60)
+        hugeVideo(src); scanner.scan(rule)
+        var f = try XCTUnwrap(store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 1).first)
+        f.route = .account; f.sendAs = .video; f.partCount = 2; store.updateDetails(f)
+        _ = await engine.run()
+        XCTAssertEqual(store.file(id: f.id)?.state, .queued)
     }
 }

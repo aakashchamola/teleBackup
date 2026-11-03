@@ -63,3 +63,9 @@ Newest at the end.
 - Wired into the app (login screens use the existing bridge calls); app builds and launches in the simulator; unsigned .ipa rebuilt (21 MB).
 - Note: the macOS test process ends with signal 6 after the TDLib test passes (TDLib's receive thread at process exit); not seen in the app.
 - Still to do: test on a real iPhone (photos, upload, delete prompt, TDLib login); document detector; HEIC to JPEG; videos over 2 GB.
+
+## 2026-11-03 (later still): videos over 2 GB on iPhone
+- Core: SplitPlan, VideoSplitter seam, album sending through the account, `sendInParts` in the upload engine (cut, album, verify each part, verified with no delete date, never offered for delete). Router cuts videos of 2 GB and over (max 10 parts). 37 core tests.
+- TeleTD: `sendMessageAlbum` through TDLib (first failure drops the unsent parts so a retry starts clean).
+- Runner: `AVVideoSplitter` (AVAssetReader/Writer pass-through, new part at the first keyframe after its share of the size). Checked on a generated 12 s video: 3 parts, all decode, 360 frames and 12.00 s in total.
+- Not tested: a real 2 GB+ file on a real iPhone, and a real album upload.

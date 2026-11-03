@@ -13,13 +13,19 @@ public struct RouterLimits {
 }
 
 /// Picks the Telegram route and the send form for one file (docs/TELEGRAM.md section 1).
-/// Videos over 2 GB are skipped on iPhone for now (no keyframe cutter yet).
 public enum Router {
     static let oddPhotoTypes: Set<String> = ["heic", "heif", "dng", "gif", "webp"]
 
     public static func decide(sizeBytes: Int64, kind: FileKind, uploadAs: UploadAs, displayName: String,
                               width: Int?, height: Int?, limits: RouterLimits = RouterLimits()) -> RouteDecision {
-        if sizeBytes >= limits.accountMaxBytes { return .skip("Too big for Telegram (over 2 GB)") }
+        if sizeBytes >= limits.accountMaxBytes {
+            // a video over 2 GB is cut into parts at keyframes and sent together; anything else that big cannot go
+            let parts = SplitPlan.partsNeeded(sizeBytes)
+            if kind == .video && SplitPlan.canSplit(displayName) && parts <= SplitPlan.maxParts {
+                return .go(.account, uploadAs == .original ? .document : .video, note: "cut into \(parts) parts", parts: parts)
+            }
+            return .skip("Too big for Telegram (over 2 GB)")
+        }
         let route: Route = sizeBytes < limits.botMaxBytes ? .bot : .account
         if uploadAs == .original { return .go(route, .document) }
         switch kind {

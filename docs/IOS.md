@@ -20,8 +20,10 @@ Same screens and the same safe-delete rule as Android. What differs is how iOS l
 Same as Android: files at or over 50 MB go through your own Telegram account (TDLib), everything smaller goes through the bot. Log in once in setup (api_id and api_hash from my.telegram.org, phone, code). With the account logged in, the delete step also asks Telegram to fetch the message again just before deleting (the strong check). Without the account, big videos wait and Home says so.
 TDLib is Swiftgram's build 1.8.69-025086e3 of the official sources, vendored as `app/ios/ThirdParty/TDLibFramework`; Swift downloads the binary and checks its SHA-256.
 
+## Videos over 2 GB
+Cut at keyframes into parts of at most 1.9 GB without re-encoding (nothing is lost), then sent together as one album through the account (up to 10 parts, so about 19 GB). Needs free space on the phone about equal to the video while it is cut. A video sent in parts is never deleted by the app; delete it yourself after checking it in Telegram. Only MOV, MP4, M4V and 3GP are cut. Tested on a real sample video on the Mac: every part decodes, frames and duration add up.
+
 ## Not on iPhone yet
-- Videos over 2 GB are skipped (no keyframe cutter on iPhone yet).
 - Document photo detector (Documents topic sorting): the switch exists but does nothing on iPhone yet.
 - HEIC photos sent as "media" go as files (Telegram shows them as documents); a JPEG conversion is not done yet. Rules made by the setup guide use "original" for Gallery, so this only affects other rules.
 

@@ -62,7 +62,7 @@ public final class LibraryScanner {
             if var edited = same.first(where: { [.queued, .failed, .skipped].contains($0.state) }) {
                 edited.sizeBytes = i.sizeBytes; edited.modifiedAt = i.modifiedAt; edited.takenAt = t; edited.width = i.width; edited.height = i.height
                 edited.durationMs = i.durationMs; edited.sha256 = nil; edited.mimeType = i.mimeType
-                if case .go(let route, let sendAs, _, _) = decision { edited.route = route; edited.sendAs = sendAs }
+                if case .go(let route, let sendAs, _, let parts) = decision { edited.route = route; edited.sendAs = sendAs; edited.partCount = parts }
                 store.updateDetails(edited)
                 if edited.state != .queued { _ = try? store.apply(edited.id, .retryByPerson, now: now) }
                 res.updated += 1; continue
@@ -74,7 +74,7 @@ public final class LibraryScanner {
             var row = FileRecord(ruleId: rule.id, path: i.path, displayName: i.displayName, mimeType: i.mimeType, kind: i.kind, sizeBytes: i.sizeBytes, modifiedAt: i.modifiedAt, takenAt: t)
             row.width = i.width; row.height = i.height; row.durationMs = i.durationMs; row.queuedAt = now; row.createdAt = now; row.updatedAt = now
             switch decision {
-            case .go(let route, let sendAs, _, _): row.route = route; row.sendAs = sendAs
+            case .go(let route, let sendAs, _, let parts): row.route = route; row.sendAs = sendAs; row.partCount = parts
             case .skip(let why): row.state = .skipped; row.lastError = why; res.skippedByRouter += 1
             }
             pending.append(row)

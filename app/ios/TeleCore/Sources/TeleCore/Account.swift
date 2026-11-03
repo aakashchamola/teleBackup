@@ -30,6 +30,7 @@ public protocol TdGateway: AnyObject {
     func submitPassword(_ password: String) async -> TdStep
     func resendCode() async -> TdStep
     func send(_ job: SendJob, progress: @escaping (Int64, Int64) -> Void) async -> SendResult
+    func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult
     func fetch(chatId: Int64, botApiMessageId: Int64) async -> TdFetch
     func logOut() async
     func close()
@@ -211,6 +212,13 @@ public final class AccountSender: TelegramSender {
     public func send(_ job: SendJob, progress: @escaping (Int64, Int64) -> Void) async -> SendResult {
         switch await auth.ensureReady() {
         case .ready: return await gateway.send(job, progress: progress)
+        case .notLoggedIn: return .failed(.accountLoggedOut)
+        case .offline: return .failed(.network)
+        }
+    }
+    public func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult {
+        switch await auth.ensureReady() {
+        case .ready: return await gateway.sendAlbum(jobs, progress: progress)
         case .notLoggedIn: return .failed(.accountLoggedOut)
         case .offline: return .failed(.network)
         }

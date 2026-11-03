@@ -225,6 +225,63 @@ public final class TdlibGateway: TdGateway {
         return .sent(sent)
     }
 
+    public func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult {
+        guard let c = client, let first = jobs.first else { return .failed(.accountLoggedOut) }
+        guard await knowChat(first.chatId) else { return .failed(.forbidden("the account cannot see the group; add the account to it")) }
+        var contents: [[String: Any]] = []
+        for j in jobs { guard let b = content(j) else { return .failed(.badRequest("photos go through the bot")) }; contents.append(b) }
+        var req: [String: Any] = ["@type": "sendMessageAlbum", "chat_id": first.chatId, "input_message_contents": contents,
+                                  "options": ["@type": "messageSendOptions", "disable_notification": true, "from_background": true]]
+        if let t = first.threadId { req["topic_id"] = ["@type": "messageTopicForum", "forum_topic_id": t] }
+        let answer = await td.request(c, req)
+        if answer["@type"] as? String == "error" { return .failed(TdErrors.forSend(code: Self.code(answer), message: Self.msg(answer))) }
+        let pending = (answer["messages"] as? [[String: Any]]) ?? []
+        guard pending.count == jobs.count else { return .failed(.badRequest("Telegram made \(pending.count) messages for \(jobs.count) files")) }
+        let total = jobs.reduce(Int64(0)) { $0 + $1.sizeBytes }
+        let ids = pending.compactMap { ($0["id"] as? NSNumber)?.int64Value }
+        guard ids.count == pending.count else { return .failed(.network) }
+        var fileIds: [Int] = []; var before: Int64 = 0
+        for (i, m) in pending.enumerated() {
+            let offset = before; before += jobs[i].sizeBytes
+            if let f = (Self.fileOf(m["content"] as? [String: Any])?["id"] as? NSNumber)?.intValue {
+                fileIds.append(f); lock.lock(); uploadsByFile[f] = Upload(jobs[i].sizeBytes) { s, _ in progress(offset + s, total) }; lock.unlock()
+            }
+        }
+        defer { lock.lock(); for f in fileIds { uploadsByFile[f] = nil }; lock.unlock() }
+
+        // wait for every part; the first failure stops the rest
+        var results: [Int64: [String: Any]] = [:]
+        for id in ids {
+            let r: [String: Any] = await withTaskCancellationHandler {
+                await withCheckedContinuation { (cont: CheckedContinuation<[String: Any], Never>) in
+                    lock.lock()
+                    if let early = earlyResults.removeValue(forKey: id) { lock.unlock(); cont.resume(returning: early) }
+                    else { sendWaiters[id] = cont; lock.unlock() }
+                }
+            } onCancel: { [weak self] in
+                guard let self = self else { return }
+                self.lock.lock(); let w = self.sendWaiters.removeValue(forKey: id); self.lock.unlock()
+                w?.resume(returning: ["@type": "updateMessageSendFailed", "error": ["code": 500, "message": "network cancelled"]])
+            }
+            results[id] = r
+            if r["@type"] as? String == "updateMessageSendFailed" { break }
+        }
+        let failed = results.values.first { $0["@type"] as? String == "updateMessageSendFailed" }
+        if results.count < ids.count || failed != nil {   // half-way: drop what was not sent, so a retry starts clean
+            lock.lock(); for id in ids { sendWaiters[id] = nil; earlyResults[id] = nil }; lock.unlock()
+            td.send(c, ["@type": "deleteMessages", "chat_id": first.chatId, "message_ids": ids, "revoke": true])
+            let e = failed?["error"] as? [String: Any] ?? [:]
+            if Self.msg(e) == "network cancelled" || failed == nil { return .failed(.network) }
+            return .failed(TdErrors.forSend(code: Self.code(e), message: Self.msg(e)))
+        }
+        var sent: [SentMessage] = []
+        for id in ids {
+            guard let msg = results[id]?["message"] as? [String: Any], let s = Self.toSent(msg) else { return .failed(.badRequest("Telegram answered with something that is not the file")) }
+            sent.append(s)
+        }
+        return .sent(sent)
+    }
+
     // MARK: fetching again
 
     public func fetch(chatId: Int64, botApiMessageId: Int64) async -> TdFetch {
