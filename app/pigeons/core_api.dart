@@ -6,6 +6,7 @@ import 'package:pigeon/pigeon.dart';
   dartOut: 'lib/bridge/core_api.g.dart',
   kotlinOut: 'android/app/src/main/kotlin/com/aakashchamola/telebackup/bridge/CoreApi.g.kt',
   kotlinOptions: KotlinOptions(package: 'com.aakashchamola.telebackup.bridge'),
+  swiftOut: 'ios/Runner/Bridge/CoreApi.g.swift',
 ))
 
 // ---------- enums (mirror docs/DATA_MODEL.md) ----------

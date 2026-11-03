@@ -47,3 +47,8 @@ testkit/
 # graphify output (rebuilt locally)
 graphify-out/
 dist/
+
+# Swift package build output
+app/ios/TeleCore/.build/
+app/ios/TeleCore/.swiftpm/
+app/ios/Pods/
