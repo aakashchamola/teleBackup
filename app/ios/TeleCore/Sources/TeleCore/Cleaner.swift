@@ -17,6 +17,8 @@ public struct CleanOutcome: Equatable {
 public final class Cleaner {
     let store: Store, settings: Settings, events: EventLog, clock: Clock, exporter: AssetExporter, deleter: PhotoDeleter
     public weak var notifier: ReviewNotifier?
+    /// The strong check (re-fetch the message as the account) just before a delete. Nil until the account is logged in.
+    public var recheck: ((FileRecord) async -> AccountCheck)?
     public static let perRuleCap = 500
     public init(store: Store, settings: Settings, events: EventLog, clock: Clock, exporter: AssetExporter, deleter: PhotoDeleter) {
         self.store = store; self.settings = settings; self.events = events; self.clock = clock; self.exporter = exporter; self.deleter = deleter
@@ -64,8 +66,9 @@ public final class Cleaner {
         var allowed: [(FileRecord, DeletePermit)] = []
         for f in store.inReview(reviewId) where f.state == .verified {
             let now = clock.now()
+            let account: AccountCheck = (settings.accountState == .ready ? await recheck?(f) : nil) ?? .notReady
             switch DeleteGate.check(file: f, rule: rule, deletesBlockedReason: settings.deletesBlockedReason, disk: exporter.facts(f.path), now: now,
-                                    inApprovedReview: true, account: .notReady, allowBotOnly: settings.allowBotOnlyDelete) {
+                                    inApprovedReview: true, account: account, allowBotOnly: settings.allowBotOnlyDelete) {
             case .allowed(let p): allowed.append((f, p))
             case .denied(let why):
                 out.denied += 1

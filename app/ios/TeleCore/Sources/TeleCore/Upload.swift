@@ -31,12 +31,16 @@ public struct RunOutcome: Equatable { public var filesDone: Int; public var reas
 public final class UploadEngine {
     let store: Store, settings: Settings, events: EventLog, clock: Clock, pacer: Pacer
     let exporter: AssetExporter, hasher: Hasher, sender: TelegramSender, control: ControlService
+    let account: TelegramSender?
+    private var accountStopped = false
+    private var botStopped = false
     public weak var progress: ProgressSink?
     private var pausedRules = Set<Int64>()
     private var networkFails = 0
 
     public init(store: Store, settings: Settings, events: EventLog, clock: Clock, pacer: Pacer, exporter: AssetExporter,
-                hasher: Hasher, sender: TelegramSender, control: ControlService) {
+                hasher: Hasher, sender: TelegramSender, control: ControlService, account: TelegramSender? = nil) {
+        self.account = account
         self.store = store; self.settings = settings; self.events = events; self.clock = clock; self.pacer = pacer
         self.exporter = exporter; self.hasher = hasher; self.sender = sender; self.control = control
     }
@@ -45,15 +49,15 @@ public final class UploadEngine {
         guard control.allowsRun else { return end(0, .paused, started: false) }
         guard settings.chatId != nil else { return end(0, .notSetUp, started: false) }
         recoverInterrupted()
-        // Big videos need the Telegram account, which is not on iPhone yet: they wait.
-        let total0 = store.queueCount(now: clock.now(), allowBot: true, allowAccount: false)
+        accountStopped = false; botStopped = false
+        let total0 = store.queueCount(now: clock.now(), allowBot: true, allowAccount: accountReady)
         progress?.runStarted(filesTotal: total0.count, bytesTotal: total0.bytes)
         var done = 0; var reason = StopReason.queueEmpty
         while true {
             if isStopped() || Task.isCancelled { reason = .osStopped; break }
             if !control.allowsRun { reason = .paused; break }
-            guard let file = store.nextInQueue(now: clock.now(), allowBot: true, allowAccount: false, excludeRuleIds: pausedRules) else {
-                reason = store.waitingAccountCount() > 0 ? .nothingToSend : .queueEmpty; break
+            guard let file = store.nextInQueue(now: clock.now(), allowBot: !botStopped, allowAccount: accountReady, excludeRuleIds: pausedRules) else {
+                reason = (store.waitingAccountCount() > 0 || botStopped) ? .nothingToSend : .queueEmpty; break
             }
             guard let rule = store.rule(id: file.ruleId), rule.enabled, rule.deletedAt == nil else {
                 _ = try? store.apply(file.id, .ignore, now: clock.now()); continue
@@ -71,6 +75,8 @@ public final class UploadEngine {
         settings.lastUploadAt = clock.now()
         return end(done, reason, started: true)
     }
+
+    var accountReady: Bool { settings.accountState == .ready && !accountStopped && account != nil }
 
     private func end(_ done: Int, _ reason: StopReason, started: Bool) -> RunOutcome {
         settings.lastStopReason = reason.rawValue
@@ -125,7 +131,13 @@ public final class UploadEngine {
                           caption: Caption.build(displayName: file.displayName, takenAt: file.takenAt, ruleName: rule.name, sha256: hash),
                           sizeBytes: exported.sizeBytes, width: file.width, height: file.height, durationMs: file.durationMs)
         let name = file.displayName
-        let result = await sender.send(job) { [weak self] s, t in self?.progress?.fileProgress(name: name, done: s, total: t) }
+        let route = file.route ?? .bot
+        guard let chosen = route == .account ? account : sender else {
+            _ = try? store.apply(file.id, .networkStop, now: clock.now())
+            if route == .account { accountStopped = true } else { botStopped = true }
+            return .retry
+        }
+        let result = await chosen.send(job) { [weak self] s, t in self?.progress?.fileProgress(name: name, done: s, total: t) }
         return complete(file.id, result, job: job, hash: hash)
     }
 
@@ -166,7 +178,13 @@ public final class UploadEngine {
         let now = clock.now()
         let after = try? store.apply(file.id, .tgFailed(err), now: now, maxAttempts: settings.maxAttempts, jitter: Double.random(in: 0...1))
         switch err {
-        case .floodWait(let s): pacer.blockAll(until: now + (s + 1) * 1000); return .retry
+        case .floodWait(let s):
+            if file.route == .account { pacer.blockRoute(.account, until: now + (s + 1) * 1000) } else { pacer.blockAll(until: now + (s + 1) * 1000) }
+            return .retry
+        case .accountLoggedOut:
+            accountStopped = true; settings.accountState = .expired
+            events.add(.loginExpired, "The Telegram account is logged out")
+            return .retry
         case .network: return .networkFail
         case .topicMissing:
             if let t = rule.topicId { store.markMissing(threadId: t, true) }
@@ -174,6 +192,7 @@ public final class UploadEngine {
             events.add(.topicMissing, "\(rule.name): the topic was deleted in Telegram", ruleId: rule.id)
             return .retry
         case .badToken, .forbidden:
+            botStopped = true
             settings.botProblem = true
             events.add(.botProblem, err.userMessage, ruleId: rule.id)
             return .networkFail
