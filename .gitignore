@@ -52,3 +52,6 @@ dist/
 app/ios/TeleCore/.build/
 app/ios/TeleCore/.swiftpm/
 app/ios/Pods/
+
+app/ios/TeleTD/.build/
+app/ios/ThirdParty/**/.build/

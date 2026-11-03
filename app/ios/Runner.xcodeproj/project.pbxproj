@@ -22,6 +22,7 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		AA0000000000000000000006 /* TeleTD in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000005 /* TeleTD */; };
 		AA0000000000000000000003 /* TeleCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000002 /* TeleCore */; };
 		AEADF3D38A6259C7F6AE7103 /* CoreHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD939D52F464E8FF184F58E /* CoreHost.swift */; };
 /* End PBXBuildFile section */
@@ -83,6 +84,7 @@
 			files = (
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 				AA0000000000000000000003 /* TeleCore in Frameworks */,
+				AA0000000000000000000006 /* TeleTD in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -208,6 +210,7 @@
 			packageProductDependencies = (
 				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
 				AA0000000000000000000002 /* TeleCore */,
+				AA0000000000000000000005 /* TeleTD */,
 			);
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
@@ -245,6 +248,7 @@
 			packageReferences = (
 				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 				AA0000000000000000000001 /* XCLocalSwiftPackageReference "TeleCore" */,
+				AA0000000000000000000004 /* XCLocalSwiftPackageReference "TeleTD" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -680,6 +684,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		AA0000000000000000000004 /* XCLocalSwiftPackageReference "TeleTD" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = TeleTD;
+		};
 		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
@@ -691,6 +699,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000005 /* TeleTD */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TeleTD;
+		};
 		78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlutterGeneratedPluginSwiftPackage;

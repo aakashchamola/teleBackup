@@ -31,7 +31,6 @@ private extension TgError {
 final class CoreHost: CoreHostApi {
     private var rt: Runtime { Runtime.shared }
     private var lastChecks: [Int64: GroupCheck] = [:]
-    private let accountMissing = "Logging in with a Telegram account is not on iPhone yet. Videos over 50 MB wait."
 
     // MARK: conversions
     private func toBridge(_ r: CRule) -> Rule {
@@ -315,17 +314,20 @@ final class CoreHost: CoreHostApi {
         }
     }
     func getTelegramState() async throws -> TelegramState {
-        let s = rt.settings
-        let bot = s.botId.map { BotInfo(id: $0, username: s.botUsername ?? "", name: "") }
-        let group = s.chatId.map { lastChecks[$0] ?? GroupCheck(chatId: $0, title: s.chatTitle ?? "", topicsOn: true, botIsAdmin: true, botCanManageTopics: true) }
-        return TelegramState(bot: bot, group: group, account: .none, accountName: nil)
+        var st = rt.telegramState()
+        if let g = st.group, let c = lastChecks[g.chatId] { st.group = c }
+        return st
     }
-    func accountStart(apiId: Int64, apiHash: String) async throws { throw fail("INTERNAL", accountMissing) }
-    func accountPhone(phone: String) async throws { throw fail("INTERNAL", accountMissing) }
-    func accountCode(code: String) async throws { throw fail("INTERNAL", accountMissing) }
-    func accountPassword(password: String) async throws { throw fail("INTERNAL", accountMissing) }
-    func accountResendCode() async throws { throw fail("INTERNAL", accountMissing) }
-    func accountLogout() async throws {}
+    func accountStart(apiId: Int64, apiHash: String) async throws {
+        let r = await rt.accountAuth.start(apiId: apiId, apiHash: apiHash)
+        rt.pushTelegramState()
+        if let e = r.lastError, r.step == .none || r.step == .waitParams { throw fail("VALIDATION", e) }
+    }
+    func accountPhone(phone: String) async throws { let r = await rt.accountAuth.phone(phone); rt.pushTelegramState(); if let e = r.lastError, r.step == .waitPhone || r.step == .expired { throw fail("VALIDATION", e) } }
+    func accountCode(code: String) async throws { let r = await rt.accountAuth.code(code); rt.pushTelegramState(); if let e = r.lastError, r.step == .waitCode { throw fail("VALIDATION", e) }; rt.startRun(scan: false) }
+    func accountPassword(password: String) async throws { let r = await rt.accountAuth.password(password); rt.pushTelegramState(); if let e = r.lastError, r.step == .waitPassword { throw fail("VALIDATION", e) }; rt.startRun(scan: false) }
+    func accountResendCode() async throws { _ = await rt.accountAuth.resendCode(); rt.pushTelegramState() }
+    func accountLogout() async throws { await rt.accountAuth.logout(); rt.pushTelegramState(); rt.pushStatus() }
 
     func createSuggestedRules(suggestionPaths: [String], startMode: StartMode, startDate: Int64?) async throws -> Int64 {
         guard tok() != nil, rt.settings.chatId != nil else { throw fail("NOT_SET_UP", "Connect Telegram first.") }

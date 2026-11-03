@@ -56,3 +56,10 @@ Newest at the end.
 - Runner app code: Photos library source, exporter, batch deleter, Keychain, notifications with Pause/Delay/Resume, BGTasks, bridge implementation. Builds for simulator and device; launches in the iPhone 16 simulator.
 - `tools/build_ios_ipa.sh` makes an unsigned .ipa for AltStore/Sideloadly (free Apple ID, 7-day signature). See docs/IOS.md.
 - Open: test on a real iPhone; TDLib for videos over 50 MB; HEIC to JPEG for media uploads; document detector.
+
+## 2026-11-03 (later): big videos on iPhone
+- Account layer ported to TeleCore (login, sender, strong check, error mapping) with fake-gateway tests; the upload engine routes files of 50 MB and over through the account, the cleaner runs the strong check when the account is logged in. 32 core tests pass.
+- New package `app/ios/TeleTD`: TDLib over its JSON interface. TDLibFramework 1.8.69-025086e3 is vendored in `app/ios/ThirdParty/TDLibFramework` (the binary is downloaded and SHA-256 checked by SwiftPM). A live test with dummy credentials reaches the phone step and maps Telegram's refusal to plain words.
+- Wired into the app (login screens use the existing bridge calls); app builds and launches in the simulator; unsigned .ipa rebuilt (21 MB).
+- Note: the macOS test process ends with signal 6 after the TDLib test passes (TDLib's receive thread at process exit); not seen in the app.
+- Still to do: test on a real iPhone (photos, upload, delete prompt, TDLib login); document detector; HEIC to JPEG; videos over 2 GB.

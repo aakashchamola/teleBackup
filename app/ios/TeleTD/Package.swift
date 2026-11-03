@@ -9,9 +9,10 @@ let package = Package(
     products: [.library(name: "TeleTD", targets: ["TeleTD"])],
     dependencies: [
         .package(path: "../TeleCore"),
-        .package(url: "https://github.com/Swiftgram/TDLibFramework", exact: "1.8.69-025086e3"),
+        .package(path: "../ThirdParty/TDLibFramework"),
     ],
     targets: [
         .target(name: "TeleTD", dependencies: ["TeleCore", .product(name: "TDLibFramework", package: "TDLibFramework")]),
+        .testTarget(name: "TeleTDTests", dependencies: ["TeleTD", "TeleCore"]),
     ]
 )

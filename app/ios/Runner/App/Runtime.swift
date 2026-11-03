@@ -5,6 +5,7 @@ import Photos
 import UserNotifications
 import BackgroundTasks
 import TeleCore
+import TeleTD
 
 typealias CRule = TeleCore.Rule
 typealias CFileRecord = TeleCore.FileRecord
@@ -53,6 +54,8 @@ final class Runtime {
     let scanner: LibraryScanner
     let pacer: Pacer
     let api: BotApi
+    let gateway: TdlibGateway
+    let accountAuth: AccountAuth
     let engine: UploadEngine
     let cleaner: Cleaner
     let tracker = RunTracker()
@@ -76,10 +79,19 @@ final class Runtime {
         scanner = LibraryScanner(source: source, store: store, settings: settings, events: events, clock: clock)
         pacer = Pacer(clock: clock)
         api = BotApi(tokenProvider: { Keychain.get("bot.token") }, transport: URLSessionTransport(), scratch: fm.temporaryDirectory)
+        let info = Bundle.main.infoDictionary
+        gateway = TdlibGateway(appVersion: info?["CFBundleShortVersionString"] as? String ?? "1.0", deviceModel: UIDevice.current.model, systemVersion: UIDevice.current.systemVersion)
+        let tdDir = support.appendingPathComponent("td")
+        accountAuth = AccountAuth(gateway: gateway, settings: settings, secrets: KeychainSecrets(),
+                                  folders: { (tdDir.appendingPathComponent("db").path, tdDir.appendingPathComponent("files").path) })
         engine = UploadEngine(store: store, settings: settings, events: events, clock: clock, pacer: pacer, exporter: exporter,
-                              hasher: Sha256Hasher(), sender: BotSender(api: api), control: control)
+                              hasher: Sha256Hasher(), sender: BotSender(api: api), control: control,
+                              account: AccountSender(auth: accountAuth, gateway: gateway))
         cleaner = Cleaner(store: store, settings: settings, events: events, clock: clock, exporter: exporter, deleter: PhotoBatchDeleter())
         engine.progress = tracker
+        let recheck = AccountRecheck(auth: accountAuth, gateway: gateway)
+        cleaner.recheck = { await recheck.recheck($0) }
+        accountAuth.onChange = { [weak self] in self?.pushTelegramState(); self?.pushStatus() }
         tracker.onChange = { [weak self] in guard let self = self else { return }; self.pushStatus(); if self.tracker.running { Notifier.shared.progress(self.tracker) } }
         exporter.clearScratch()   // leftovers of a killed run
     }
@@ -134,8 +146,8 @@ final class Runtime {
 
     func buildStatus() async -> Status {
         let now = clock.now()
-        let q = store.queueCount(now: now, allowBot: true, allowAccount: false)
-        let waitingAccount = store.waitingAccountCount()
+        let q = store.queueCount(now: now, allowBot: true, allowAccount: settings.accountState == .ready)
+        let waitingAccount = settings.accountState == .ready ? 0 : store.waitingAccountCount()
         let cal = Calendar.current
         let midnight = Int64(cal.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
         let control = ControlState.from(settings.controlState.rawValue)
@@ -156,8 +168,9 @@ final class Runtime {
         let p = await permissionState()
         if !settings.setupDone { out.append(Attention(kind: .setupNotDone, text: "Finish setup to start backing up.")) }
         if !p.photos { out.append(Attention(kind: .allFilesLost, text: "teleBackup can't reach your photos. Backup and delete are stopped.")) }
-        if waitingAccount > 0 {
-            out.append(Attention(kind: .bigFilesWaitAccount, text: "\(waitingAccount) big video\(waitingAccount == 1 ? "" : "s") over 50 MB wait for the Telegram account (not on iPhone yet).", count: Int64(waitingAccount)))
+        if settings.accountState == .expired { out.append(Attention(kind: .loginExpired, text: "Your Telegram account was logged out. Log in again.")) }
+        else if settings.accountState == .none && waitingAccount > 0 {
+            out.append(Attention(kind: .bigFilesWaitAccount, text: "\(waitingAccount) big video\(waitingAccount == 1 ? "" : "s") wait for your Telegram account.", count: Int64(waitingAccount)))
         }
         if settings.setupDone && settings.botProblem { out.append(Attention(kind: .botProblem, text: "teleBackup can't post to your group. Add the bot back as admin.")) }
         for r in store.activeRules() {
@@ -170,7 +183,7 @@ final class Runtime {
         if !p.notifications { out.append(Attention(kind: .notificationsOff, text: "Notifications are off, so you won't see progress.")) }
         if !p.backgroundRefresh { out.append(Attention(kind: .batteryOptimized, text: "Background App Refresh is off, so backups only run while the app is open.")) }
         if let exp = settings.signatureExpiresAt, exp - now < 2 * Time.day {
-            out.append(Attention(kind: .loginExpired, text: exp < now ? "This app's 7-day install has run out. Re-install it with AltStore." : "This app's 7-day install runs out soon. Open AltStore to refresh it."))
+            out.append(Attention(kind: .batteryOptimized, text: exp < now ? "This app's 7-day install has run out. Re-install it with AltStore." : "This app's 7-day install runs out soon. Open AltStore to refresh it."))
         }
         let skipped = store.skippedCountSince(now - 7 * Time.day)
         if skipped > 0 { out.append(Attention(kind: .skippedRecently, text: "\(skipped) file\(skipped == 1 ? "" : "s") skipped this week.", count: Int64(skipped))) }
@@ -194,5 +207,26 @@ extension Runtime {
         let ms = Int64(d.timeIntervalSince1970 * 1000)
         settings.signatureExpiresAt = ms
         Notifier.shared.scheduleExpiryReminder(expiresAt: ms)
+    }
+}
+
+struct KeychainSecrets: SecretStore {
+    func get(_ key: String) -> String? { Keychain.get(key) }
+    func put(_ key: String, _ value: String?) { Keychain.put(key, value) }
+}
+
+extension Runtime {
+    func telegramState() -> TelegramState {
+        let s = settings
+        let bot = s.botId.map { BotInfo(id: $0, username: s.botUsername ?? "", name: "") }
+        let group = s.chatId.map { GroupCheck(chatId: $0, title: s.chatTitle ?? "", topicsOn: true, botIsAdmin: true, botCanManageTopics: true) }
+        let a = accountAuth.snapshot()
+        return TelegramState(bot: bot, group: group, account: AccountState.allCases.first { "\($0)" == "\(a.step)" } ?? .none,
+                             accountName: a.name ?? s.accountName, accountPhoneMasked: a.phoneMasked, codeSentTo: a.codeSentTo, passwordHint: a.passwordHint, lastError: a.lastError)
+    }
+    func pushTelegramState() {
+        guard let ev = events_ else { return }
+        let st = telegramState()
+        Task { @MainActor in try? await ev.onTelegramState(state: st) }
     }
 }
