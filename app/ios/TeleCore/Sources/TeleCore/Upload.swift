@@ -1,7 +1,7 @@
 import Foundation
 
 /// Gets a copy of one library item into our scratch folder (downloads it from iCloud if needed).
-public struct ExportedFile { public var path: String; public var sizeBytes: Int64 }
+public struct ExportedFile { public var path: String; public var sizeBytes: Int64; public init(path: String, sizeBytes: Int64) { self.path = path; self.sizeBytes = sizeBytes } }
 public protocol AssetExporter {
     func export(_ assetId: String, displayName: String) async throws -> ExportedFile
     func facts(_ assetId: String) -> DiskFacts

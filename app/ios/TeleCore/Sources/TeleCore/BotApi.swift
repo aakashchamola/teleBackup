@@ -10,7 +10,7 @@ public enum ApiResult<T> {
 public struct BotUser: Equatable { public var id: Int64; public var username: String; public var name: String }
 public struct ChatSummary: Equatable { public var id: Int64; public var title: String; public var type: String }
 public struct ChatInfo: Equatable { public var id: Int64; public var title: String; public var isForum: Bool }
-public struct MemberInfo: Equatable { public var status: String; public var canManageTopics: Bool }
+public struct MemberInfo: Equatable { public var status: String; public var canManageTopics: Bool; public init(status: String, canManageTopics: Bool) { self.status = status; self.canManageTopics = canManageTopics } }
 public struct TopicInfo: Equatable { public var threadId: Int64; public var name: String }
 
 /// One HTTP exchange. A fake in tests, URLSession in the app.
