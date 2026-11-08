@@ -97,3 +97,4 @@ This happens because on-device ADI emulation is blocked by iOS 17's sandbox. Fix
 - **Automatic background refresh**: Leave **Background App Refresh** enabled for SideStore and keep LocalDevVPN installed. SideStore will automatically renew the signature in the background over Wi-Fi.
 - **Manual refresh**: If you ever see teleBackup's 2-day expiry alert, simply open **LocalDevVPN** (Connect), open **SideStore**, go to **My Apps**, and tap the refresh button next to teleBackup.
 - **You do NOT need the Mac or Xcode anymore.** You can safely delete Xcode from your Mac to free up disk space.
+

@@ -44,3 +44,4 @@ if __name__ == "__main__":
         print("Usage: python3 tools/fix_pairing_file.py <path/to/pairingFile.plist>")
         sys.exit(1)
     split_pairing_file(sys.argv[1])
+
