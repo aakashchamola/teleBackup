@@ -21,7 +21,7 @@ public protocol MediaSource {
     func albumExists(_ album: String) -> Bool
 }
 
-public struct ScanResult: Equatable { public var newFiles = 0, updated = 0, changed = 0, gone = 0, tooNew = 0, notIncluded = 0, skippedByRouter = 0 }
+public struct ScanResult: Equatable { public var newFiles = 0, updated = 0, changed = 0, gone = 0, tooNew = 0, notIncluded = 0, skippedByRouter = 0, restored = 0 }
 public struct BacklogPreview: Equatable { public var count: Int; public var bytes: Int64; public var newestAt: Int64?; public var oldestAt: Int64? }
 
 /// Finds files for a rule and queues them, oldest first (docs/HOW_IT_WORKS.md section 4).
@@ -77,6 +77,9 @@ public final class LibraryScanner {
             case .go(let route, let sendAs, _, let parts): row.route = route; row.sendAs = sendAs; row.partCount = parts
             case .skip(let why): row.state = .skipped; row.lastError = why; res.skippedByRouter += 1
             }
+            if row.state == .queued, store.isRestored(Caption.key(displayName: i.displayName, takenAt: t)) {
+                row.state = .ignored; row.lastError = "Already in Telegram (found when reconnecting)"; res.restored += 1
+            }
             pending.append(row)
             if pending.count >= 500 { res.newFiles += store.insertAll(pending); pending.removeAll() }
         }
@@ -101,6 +104,16 @@ public enum Caption {
         let extras = (line3.isEmpty ? 0 : line3.count + 1) + line2.count + 1
         let name = shorten(displayName, Swift.max(10, max - extras))
         return String([name, line2, line3].filter { !$0.isEmpty }.joined(separator: "\n").prefix(max))
+    }
+    /// What identifies a photo inside a caption: its name and the minute it was taken (not the rule name, which can change).
+    public static func key(caption: String) -> String? {
+        let lines = caption.components(separatedBy: "\n")
+        guard lines.count >= 2, !lines[0].isEmpty, let dot = lines[1].range(of: " · ") else { return nil }
+        let date = String(lines[1][..<dot.lowerBound])
+        return lines[0] + "|" + date
+    }
+    public static func key(displayName: String, takenAt: Int64) -> String {
+        key(caption: build(displayName: displayName, takenAt: takenAt, ruleName: "x", sha256: nil)) ?? displayName
     }
     public static func shorten(_ t: String, _ m: Int) -> String {
         if t.count <= m { return t }

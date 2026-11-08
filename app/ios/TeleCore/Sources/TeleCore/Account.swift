@@ -18,6 +18,11 @@ public struct TdParams {
 }
 public enum TdStep: Equatable { case ok, rejected(String), network }
 public enum TdFetch: Equatable { case found(SentMessage), notFound, unavailable }
+/// One page of a group's history, newest first. `oldestId` is the TDLib id to continue from; nil when there is nothing more.
+public struct TdHistory: Equatable {
+    public var captions: [String], oldestId: Int64?, failed: Bool
+    public init(captions: [String], oldestId: Int64?, failed: Bool = false) { self.captions = captions; self.oldestId = oldestId; self.failed = failed }
+}
 
 /// The only thing the app knows about TDLib. The real one is in the TeleTD package; tests use a fake.
 /// Message ids in and out are Bot API ids; the gateway does the 20-bit shift (see `TdIds`).
@@ -32,6 +37,7 @@ public protocol TdGateway: AnyObject {
     func send(_ job: SendJob, progress: @escaping (Int64, Int64) -> Void) async -> SendResult
     func sendAlbum(_ jobs: [SendJob], progress: @escaping (Int64, Int64) -> Void) async -> AlbumResult
     func fetch(chatId: Int64, botApiMessageId: Int64) async -> TdFetch
+    func history(chatId: Int64, fromTdlibId: Int64, limit: Int) async -> TdHistory
     func logOut() async
     func close()
 }
@@ -106,6 +112,7 @@ public final class AccountAuth {
     let settleMs: Int
     private var lastError: String?
     private var opened = false
+    public var hasLogin: Bool { settings.accountState == .ready }
     public var onChange: (() -> Void)?
 
     public init(gateway: TdGateway, settings: Settings, secrets: SecretStore, folders: @escaping () -> (db: String, files: String), settleMs: Int = 20_000) {

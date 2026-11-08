@@ -158,3 +158,92 @@ final class PipelineTests: XCTestCase {
         XCTAssertEqual(Caption.shorten("abcdefghij", 7), "ab...ij")
     }
 }
+
+final class FakeBackground: BackgroundUploading {
+    var submitted: [(SendJob, Int64)] = [], active: Set<Int64> = [], refuse = false
+    func submit(_ job: SendJob, fileId: Int64) -> String? { if refuse { return nil }; submitted.append((job, fileId)); return "/tmp/none-\(fileId)" }
+    func activeFileIds() async -> Set<Int64> { active }
+}
+
+final class BackgroundUploadTests: XCTestCase {
+    var store: Store!; var settings: Settings!; var clock: FixedClock!; var source: FakeSource!; var engine: UploadEngine!; var bg: FakeBackground!
+    var scanner: LibraryScanner!; var rule: Rule!; var sender: FakeSender!
+
+    override func setUpWithError() throws {
+        store = try Store.inMemory(); settings = Settings(store); clock = FixedClock(10 * Time.day)
+        let events = EventLog(store, clock); source = FakeSource(); sender = FakeSender(); bg = FakeBackground()
+        let rules = RuleService(store: store, settings: settings, events: events, clock: clock)
+        let control = ControlService(settings: settings, events: events, clock: clock)
+        engine = UploadEngine(store: store, settings: settings, events: events, clock: clock, pacer: Pacer(clock: clock, botPerMinute: 6000, burst: 100),
+                              exporter: FakeExporter(source), hasher: FakeHasher(), sender: sender, control: control)
+        engine.background = bg
+        scanner = LibraryScanner(source: source, store: store, settings: settings, events: events, clock: clock)
+        settings.chatId = -100
+        var r = Rule(name: "Gallery", folderPath: "smart:recents"); r.topicId = 5; r.startMode = .everything
+        rule = try rules.save(r)
+    }
+    func item(_ n: String, taken: Int64, size: Int64 = 2000) -> MediaItem {
+        MediaItem(path: "id-\(n)", displayName: "\(n).JPG", mimeType: "image/jpeg", sizeBytes: size, modifiedAt: taken, takenAt: taken, width: 4000, height: 3000, durationMs: nil, kind: .photo)
+    }
+    func reply(_ id: Int) -> Data {
+        Data(#"{"ok":true,"result":{"message_id":\#(id),"message_thread_id":5,"chat":{"id":-100},"photo":[{"file_id":"x","file_unique_id":"u","width":4000,"height":3000,"file_size":2000}]}}"#.utf8)
+    }
+
+    func testFilesAreHandedToTheSystemNotSentInline() async throws {
+        source.items = [item("a", taken: 2 * Time.day), item("b", taken: 3 * Time.day)]; scanner.scan(rule)
+        _ = await engine.run()
+        XCTAssertEqual(bg.submitted.count, 2)
+        XCTAssertTrue(sender.sent.isEmpty)
+        let id = bg.submitted[0].1
+        XCTAssertEqual(store.file(id: id)?.state, .uploading)
+        XCTAssertEqual(store.bgOutstanding().count, 2)
+    }
+
+    func testAnswerArrivingLaterVerifiesTheFile() async throws {
+        source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        let id = bg.submitted[0].1
+        engine.completeBackground(fileId: id, httpCode: 200, data: reply(77), error: nil)
+        let f = try XCTUnwrap(store.file(id: id))
+        XCTAssertEqual(f.state, .verified); XCTAssertEqual(f.tgMessageId, 77)
+        XCTAssertEqual(store.bgOutstanding().count, 0)
+    }
+
+    func testNetworkErrorPutsFileBackWithoutCountingAnAttempt() async throws {
+        source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        let id = bg.submitted[0].1
+        engine.completeBackground(fileId: id, httpCode: 0, data: Data(), error: URLError(.notConnectedToInternet))
+        let f = try XCTUnwrap(store.file(id: id)); XCTAssertEqual(f.attempts, 0)
+        XCTAssertTrue([.queued, .failed].contains(f.state))
+    }
+
+    func testFileInTheSystemIsNotTreatedAsInterrupted() async throws {
+        source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        let id = bg.submitted[0].1
+        bg.active = [id]; _ = await engine.run()   // a second run must leave it alone
+        XCTAssertEqual(store.file(id: id)?.state, .uploading)
+        XCTAssertEqual(bg.submitted.count, 1)
+    }
+
+    func testLostTaskGoesBackToQueueAfterWaiting() async throws {
+        source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        let id = bg.submitted[0].1
+        clock.t += 20 * Time.minute; bg.active = []
+        _ = await engine.run()
+        XCTAssertGreaterThanOrEqual(bg.submitted.count, 2)   // re-queued and handed over again
+        XCTAssertEqual(store.file(id: id)?.state, .uploading)
+    }
+
+    func testLimitStopsHandOverButRunEnds() async throws {
+        source.items = (0..<3).map { item("f\($0)", taken: Int64($0 + 2) * Time.day, size: 30_000_000) }; scanner.scan(rule); engine.handoffMaxBytes = 70_000_000
+        let out = await engine.run()
+        XCTAssertEqual(bg.submitted.count, 2)   // byte cap
+        XCTAssertEqual(out.reason, .nothingToSend)
+    }
+
+    func testRefusedSubmitDoesNotLoseTheFile() async throws {
+        bg.refuse = true
+        source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        let f = try XCTUnwrap(store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 5).first)
+        XCTAssertEqual(f.state, .queued); XCTAssertEqual(store.bgOutstanding().count, 0)
+    }
+}

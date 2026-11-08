@@ -153,3 +153,11 @@ public struct EventRecord: Equatable {
         self.at = at; self.kind = kind; self.message = message; self.ruleId = ruleId; self.fileId = fileId; self.bytes = bytes
     }
 }
+
+/// An upload the system is carrying out in the background (the body file is on disk until Telegram answers).
+public struct BgJobRecord: Equatable {
+    public var fileId: Int64, hash: String, json: String, bodyPath: String, bytes: Int64, createdAt: Int64
+    public init(fileId: Int64, hash: String, json: String, bodyPath: String, bytes: Int64, createdAt: Int64) {
+        self.fileId = fileId; self.hash = hash; self.json = json; self.bodyPath = bodyPath; self.bytes = bytes; self.createdAt = createdAt
+    }
+}

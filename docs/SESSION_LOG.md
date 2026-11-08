@@ -76,3 +76,11 @@ Newest at the end.
 - Self-care: retry loop inside the run, reconnect on Wi-Fi, delay expiry (in-app timer + background wake), WakePlanner (next retry / end of delay / daily) feeding BGTaskScheduler, daily housekeeping. 43 core tests.
 - Notifications rewritten to match Android (progress, paused, paused until, warnings once each, check before deleting, routes on tap).
 - Open: test on a real iPhone; the free-Apple-ID 7-day signature is the one thing that is not automatic (see docs/IOS.md).
+
+## 2026-11-08: iPhone on the Mac (restore, background uploads, Dynamic Island)
+- Installed on the owner's iPhone 15 in Release mode only (Debug apps cannot be opened from the home screen on iOS 14+). Signed with the free Personal Team, bundle id `com.anshulbhatt.telebackup`; install over the old app keeps its data. The signature lasts 7 days.
+- Restore from Telegram: on the first run on a phone the account reads the group history, remembers each caption's file name + time taken (`restored` table); the scanner records matches as ignored ("Already in Telegram"), never uploads or deletes them. `HistoryRestorer`, `TdGateway.history`.
+- Wake planner asks iOS for a window about a minute out while files wait (was a day).
+- Background uploads: bot files go to iOS's background URLSession (`BackgroundUploader`, `UploadEngine.handOff` / `completeBackground`, table `bgjobs`, caps 600 MB / 150 files). The system keeps sending with the screen off and wakes the app when Telegram answers; the app then hands over the next files. Account (TDLib) files, 50 MB and over, still need the app to run.
+- Dynamic Island / lock screen counter "done / total": widget extension `TeleBackupWidgets` + `Shared/BackupActivity.swift` + `LiveActivityController`. Starts while the app is open, updates whenever the app is awake.
+- 53 core tests pass. Not yet proven on the phone with real photos: restore matching, background upload with the screen off, the Live Activity.

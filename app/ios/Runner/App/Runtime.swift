@@ -100,6 +100,9 @@ final class Runtime {
                               account: AccountSender(auth: accountAuth, gateway: gateway))
         cleaner = Cleaner(store: store, settings: settings, events: events, clock: clock, exporter: exporter, deleter: PhotoBatchDeleter())
         engine.progress = tracker
+        BackgroundUploader.shared.api = api
+        BackgroundUploader.shared.allowCellular = { [settings] in settings.allowMobileData || settings.mobileOnceUntilEmpty }
+        engine.background = BackgroundUploader.shared   // bot uploads go to iOS's background session: they continue with the screen off
         engine.splitter = AVVideoSplitter()
         engine.scratchDir = fm.temporaryDirectory.appendingPathComponent("scratch").path
         let recheck = AccountRecheck(auth: accountAuth, gateway: gateway)
@@ -140,6 +143,11 @@ final class Runtime {
     /// short waits are slept through, and the delete list, old history, warnings and the next wake-up are looked after at the end.
     func performRun(scan: Bool) async {
         if control.resumeIfDelayExpired() { Notifier.shared.clearControl() }
+        if scan, accountAuth.hasLogin, let chat = settings.chatId {
+            tracker.scanning = true; pushStatus()
+            _ = await HistoryRestorer(store: store, gateway: gateway, auth: accountAuth).run(chatId: chat)   // first time on this phone only
+            tracker.scanning = false
+        }
         if scan { tracker.scanning = true; pushStatus(); for r in rules.active() where r.enabled { scanner.scan(r) }; tracker.scanning = false }
         var rounds = 0
         while rounds < 60 {
@@ -208,6 +216,13 @@ final class Runtime {
     }
     func flushPendingRoute() { if let r = pendingRoute { pendingRoute = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.openRoute(r) } } }
 
+    /// Telegram answered for a file the system uploaded in the background (the app may have just been woken for this).
+    func backgroundFinished(fileId: Int64, code: Int, data: Data, error: Error?) {
+        engine.completeBackground(fileId: fileId, httpCode: code, data: data, error: error)
+        pushStatus()
+        DispatchQueue.main.async { [self] in startRun(scan: false) }   // hand the next files to the system
+    }
+
     var isRunning: Bool { runTask != nil }
 
     func cancelRun() { runTask?.cancel() }
@@ -215,11 +230,25 @@ final class Runtime {
     // MARK: status
 
     func pushStatus() {
+        DispatchQueue.main.async { [self] in updateLiveActivity() }
         guard let ev = events_ else { return }
         Task { @MainActor in
             let s = await self.buildStatus()
             try? await ev.onStatus(status: s)
         }
+    }
+
+    /// Feeds the Dynamic Island / lock-screen counter. Called after every status change, also while the app is only awake in the background.
+    func updateLiveActivity() {
+        let c = store.stateCounts()
+        let doneStates: Set<TeleCore.FileState> = [.uploaded, .verified, .deleted]
+        let totalStates: Set<TeleCore.FileState> = [.queued, .uploading, .failed, .uploaded, .verified, .deleted]
+        let done = c.filter { doneStates.contains($0.state) }.reduce(0) { $0 + $1.count }
+        let total = c.filter { totalStates.contains($0.state) }.reduce(0) { $0 + $1.count }
+        let inSystem = store.bgOutstanding().count > 0
+        let busy = tracker.running || tracker.scanning || inSystem
+        let name = tracker.currentFileName ?? (inSystem ? "Sending in the background" : "Working")
+        LiveActivityController.shared.sync(done: done, total: total, current: name, busy: busy, waiting: !tracker.running && inSystem)
     }
 
     func permissionState() async -> (notifications: Bool, photos: Bool, backgroundRefresh: Bool) {

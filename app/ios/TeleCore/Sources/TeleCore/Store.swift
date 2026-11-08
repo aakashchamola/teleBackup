@@ -30,6 +30,8 @@ public final class Store {
         CREATE TABLE IF NOT EXISTS reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, ruleId INT, createdAt INT, fileCount INT, totalBytes INT, status TEXT, decidedAt INT);
         CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, at INT, kind TEXT, ruleId INT, fileId INT, bytes INT, message TEXT);
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS restored(key TEXT PRIMARY KEY);
+        CREATE TABLE IF NOT EXISTS bgjobs(fileId INTEGER PRIMARY KEY, hash TEXT, json TEXT, bodyPath TEXT, bytes INT, createdAt INT);
         """)
     }
 
@@ -196,11 +198,31 @@ public final class Store {
     }
     public func prune(before: Int64) -> Int { (try? db.exec("DELETE FROM events WHERE at<?", [before.v])) ?? 0 }
 
+    // MARK: uploads handed to the system (iOS keeps sending them with the screen off)
+    public func putBgJob(_ j: BgJobRecord) {
+        _ = try? db.exec("INSERT OR REPLACE INTO bgjobs(fileId,hash,json,bodyPath,bytes,createdAt) VALUES(?,?,?,?,?,?)", [j.fileId.v, j.hash.v, j.json.v, j.bodyPath.v, j.bytes.v, j.createdAt.v])
+    }
+    private func bgJob(_ r: Row) -> BgJobRecord { BgJobRecord(fileId: r.int(0), hash: r.text(1), json: r.text(2), bodyPath: r.text(3), bytes: r.int(4), createdAt: r.int(5)) }
+    public func bgJob(_ fileId: Int64) -> BgJobRecord? { try? db.query("SELECT fileId,hash,json,bodyPath,bytes,createdAt FROM bgjobs WHERE fileId=?", [fileId.v], bgJob).first }
+    public func bgJobs() -> [BgJobRecord] { (try? db.query("SELECT fileId,hash,json,bodyPath,bytes,createdAt FROM bgjobs", [], bgJob)) ?? [] }
+    public func removeBgJob(_ fileId: Int64) { _ = try? db.exec("DELETE FROM bgjobs WHERE fileId=?", [fileId.v]) }
+    public func bgOutstanding() -> (count: Int, bytes: Int64) {
+        let r = (try? db.query("SELECT COUNT(*), COALESCE(SUM(bytes),0) FROM bgjobs", []) { ($0.int(0), $0.int(1)) })?.first ?? (0, 0)
+        return (Int(r.0), r.1)
+    }
+
+    // MARK: restored (files found in Telegram after a fresh install)
+    public func addRestored(_ keys: [String]) {
+        _ = try? db.transaction { for k in keys { _ = try? db.exec("INSERT OR IGNORE INTO restored(key) VALUES(?)", [k.v]) } }
+    }
+    public func isRestored(_ key: String) -> Bool { ((try? db.query("SELECT 1 FROM restored WHERE key=?", [key.v]) { $0.int(0) })?.first) != nil }
+    public func restoredCount() -> Int { Int((try? db.query("SELECT COUNT(*) FROM restored", []) { $0.int(0) })?.first ?? 0) }
+
     // MARK: settings (key/value)
     public func setting(_ key: String) -> String? { (try? db.query("SELECT value FROM settings WHERE key=?", [key.v]) { $0.text(0) })?.first }
     public func put(_ key: String, _ value: String?) {
         if let v = value { _ = try? db.exec("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", [key.v, v.v]) }
         else { _ = try? db.exec("DELETE FROM settings WHERE key=?", [key.v]) }
     }
-    public func clearAll() { _ = try? db.exec("DELETE FROM files; DELETE FROM rules; DELETE FROM topics; DELETE FROM reviews; DELETE FROM events; DELETE FROM settings;") }
+    public func clearAll() { _ = try? db.exec("DELETE FROM files; DELETE FROM rules; DELETE FROM topics; DELETE FROM reviews; DELETE FROM events; DELETE FROM settings; DELETE FROM restored; DELETE FROM bgjobs;") }
 }

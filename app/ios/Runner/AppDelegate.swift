@@ -17,6 +17,11 @@ import Photos
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  override func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+    _ = Runtime.shared   // brings the engine up so the answers can be recorded
+    BackgroundUploader.shared.completionHandler = completionHandler
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()

@@ -25,6 +25,31 @@ public extension ProgressSink {
     func runEnded(_ reason: StopReason) {}
 }
 
+/// iOS's own background upload session: the system keeps sending after the app is suspended and wakes the app when Telegram has answered.
+public protocol BackgroundUploading: AnyObject {
+    /// Writes the request body to a file the system can read and starts the upload. Returns that file's path, or nil if it could not be prepared.
+    func submit(_ job: SendJob, fileId: Int64) -> String?
+    /// File ids of uploads the system is still carrying out.
+    func activeFileIds() async -> Set<Int64>
+}
+
+/// The few fields of a `SendJob` needed to check Telegram's reply after a background upload.
+enum BgJobCodec {
+    static func encode(_ j: SendJob) -> String {
+        var d: [String: Any] = ["chat": j.chatId, "name": j.displayName, "mime": j.mimeType, "as": j.sendAs.rawValue, "cap": j.caption, "size": j.sizeBytes]
+        if let t = j.threadId { d["thread"] = t }
+        if let w = j.width { d["w"] = w }; if let h = j.height { d["h"] = h }; if let u = j.durationMs { d["dur"] = u }
+        return (try? JSONSerialization.data(withJSONObject: d)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+    static func decode(_ s: String) -> SendJob? {
+        guard let d = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any],
+              let chat = (d["chat"] as? NSNumber)?.int64Value, let asRaw = d["as"] as? String, let sendAs = SendAs(rawValue: asRaw) else { return nil }
+        return SendJob(chatId: chat, threadId: (d["thread"] as? NSNumber)?.int64Value, path: "", displayName: d["name"] as? String ?? "", mimeType: d["mime"] as? String ?? "",
+                       sendAs: sendAs, caption: d["cap"] as? String ?? "", sizeBytes: (d["size"] as? NSNumber)?.int64Value ?? 0,
+                       width: (d["w"] as? NSNumber)?.intValue, height: (d["h"] as? NSNumber)?.intValue, durationMs: (d["dur"] as? NSNumber)?.int64Value)
+    }
+}
+
 public enum StopReason: String { case queueEmpty, paused, osStopped, noInternet, notSetUp, nothingToSend }
 public struct RunOutcome: Equatable { public var filesDone: Int; public var reason: StopReason }
 
@@ -42,6 +67,10 @@ public final class UploadEngine {
     public weak var progress: ProgressSink?
     private var pausedRules = Set<Int64>()
     private var networkFails = 0
+    /// Set to hand bot uploads to iOS's background session instead of waiting for each one.
+    public var background: BackgroundUploading?
+    public var handoffMaxBytes: Int64 = 600_000_000, handoffMaxFiles = 150
+    private var handoffFull = false
 
     public init(store: Store, settings: Settings, events: EventLog, clock: Clock, pacer: Pacer, exporter: AssetExporter,
                 hasher: Hasher, sender: TelegramSender, control: ControlService, account: TelegramSender? = nil) {
@@ -54,15 +83,16 @@ public final class UploadEngine {
         guard control.allowsRun else { return end(0, .paused, started: false) }
         guard settings.chatId != nil else { return end(0, .notSetUp, started: false) }
         recoverInterrupted()
-        accountStopped = false; botStopped = false
+        accountStopped = false; botStopped = false; handoffFull = false
+        await reconcileBackground()
         let total0 = store.queueCount(now: clock.now(), allowBot: true, allowAccount: accountReady)
         progress?.runStarted(filesTotal: total0.count, bytesTotal: total0.bytes)
         var done = 0; var reason = StopReason.queueEmpty
         while true {
             if isStopped() || Task.isCancelled { reason = .osStopped; break }
             if !control.allowsRun { reason = .paused; break }
-            guard let file = store.nextInQueue(now: clock.now(), allowBot: !botStopped, allowAccount: accountReady, excludeRuleIds: pausedRules) else {
-                reason = (store.waitingAccountCount() > 0 || botStopped) ? .nothingToSend : .queueEmpty; break
+            guard let file = store.nextInQueue(now: clock.now(), allowBot: !botStopped && !handoffFull, allowAccount: accountReady, excludeRuleIds: pausedRules) else {
+                reason = (store.waitingAccountCount() > 0 || botStopped || handoffFull) ? .nothingToSend : .queueEmpty; break
             }
             guard let rule = store.rule(id: file.ruleId), rule.enabled, rule.deletedAt == nil else {
                 _ = try? store.apply(file.id, .ignore, now: clock.now()); continue
@@ -91,7 +121,7 @@ public final class UploadEngine {
 
     /// Rows left in `uploading` by a kill become queued, or uploaded if Telegram had already answered.
     func recoverInterrupted() {
-        for f in store.interrupted() {
+        for f in store.interrupted() where store.bgJob(f.id) == nil {   // a file the system is still sending is not interrupted
             if let after = try? store.apply(f.id, .recoverAfterCrash, now: clock.now()), after.state == .uploaded, let rule = store.rule(id: after.ruleId) {
                 verify(after, rule, job: nil)
             }
@@ -151,6 +181,7 @@ public final class UploadEngine {
         let name = file.displayName
         if file.partCount > 1 { return await sendInParts(file, rule, exported: exported, hash: hash, job: job) }
         let route = file.route ?? .bot
+        if route == .bot, let bg = background { return handOff(file, job: job, hash: hash, bg) }
         guard let chosen = route == .account ? account : sender else {
             _ = try? store.apply(file.id, .networkStop, now: clock.now())
             if route == .account { accountStopped = true } else { botStopped = true }
@@ -158,6 +189,48 @@ public final class UploadEngine {
         }
         let result = await chosen.send(job) { [weak self] s, t in self?.progress?.fileProgress(name: name, done: s, total: t) }
         return complete(file.id, result, job: job, hash: hash)
+    }
+
+    /// Gives one upload to the system. The file stays `uploading`; `completeBackground` records Telegram's answer, even if the app was asleep.
+    func handOff(_ file: FileRecord, job: SendJob, hash: String, _ bg: BackgroundUploading) -> Step {
+        let out = store.bgOutstanding()
+        if out.count >= handoffMaxFiles || out.bytes + job.sizeBytes > handoffMaxBytes {
+            _ = try? store.apply(file.id, .networkStop, now: clock.now()); handoffFull = true; return .retry
+        }
+        let now = clock.now()
+        store.putBgJob(BgJobRecord(fileId: file.id, hash: hash, json: BgJobCodec.encode(job), bodyPath: "", bytes: job.sizeBytes, createdAt: now))
+        guard let body = bg.submit(job, fileId: file.id) else {
+            store.removeBgJob(file.id); _ = try? store.apply(file.id, .networkStop, now: clock.now()); botStopped = true; return .networkFail
+        }
+        var rec = store.bgJob(file.id)!; rec.bodyPath = body; store.putBgJob(rec)
+        return .done
+    }
+
+    /// Telegram answered (or the connection failed) for an upload the system carried out in the background.
+    public func completeBackground(fileId: Int64, httpCode: Int, data: Data, error: Error?) {
+        guard let rec = store.bgJob(fileId) else { return }
+        defer { store.removeBgJob(fileId); if !rec.bodyPath.isEmpty { try? FileManager.default.removeItem(atPath: rec.bodyPath) } }
+        guard let file = store.file(id: fileId), file.state == .uploading, let job = BgJobCodec.decode(rec.json) else { return }
+        let result: SendResult
+        if error != nil && data.isEmpty { result = .failed(.network) }
+        else {
+            switch BotApi.parse(httpCode: httpCode, data: data, { BotApi.parseSent($0, kind: job.sendAs, fallbackChat: job.chatId) }) {
+            case .ok(let m): result = .sent(m)
+            case .err(let e): result = .failed(e)
+            }
+        }
+        complete(fileId, result, job: job, hash: rec.hash)
+    }
+
+    /// A background upload the system no longer knows about (app reinstalled, task lost): put the file back in the queue.
+    func reconcileBackground() async {
+        guard let bg = background else { return }
+        let jobs = store.bgJobs(); if jobs.isEmpty { return }
+        let active = await bg.activeFileIds()
+        for j in jobs where !active.contains(j.fileId) && clock.now() - j.createdAt > 15 * Time.minute {
+            if let f = store.file(id: j.fileId), f.state == .uploading { _ = try? store.apply(f.id, .recoverAfterCrash, now: clock.now()) }
+            store.removeBgJob(j.fileId); if !j.bodyPath.isEmpty { try? FileManager.default.removeItem(atPath: j.bodyPath) }
+        }
     }
 
     /// A video over 2 GB: cut at keyframes, the parts go up together as one album and are never deleted by the app.

@@ -22,6 +22,8 @@ final class FakeGateway: TdGateway {
         return .sent(jobs.enumerated().map { i, j in SentMessage(chatId: j.chatId, threadId: j.threadId, messageId: Int64(900 + i), fileUniqueId: "u\(i)", size: j.sizeBytes, width: j.width, height: j.height, durationMs: nil, kind: j.sendAs) })
     }
     func fetch(chatId: Int64, botApiMessageId: Int64) async -> TdFetch { fetchAnswer }
+    var pages: [TdHistory] = [], historyCalls = 0
+    func history(chatId: Int64, fromTdlibId: Int64, limit: Int) async -> TdHistory { defer { historyCalls += 1 }; return historyCalls < pages.count ? pages[historyCalls] : TdHistory(captions: [], oldestId: nil) }
     func logOut() async { auth = .loggedOut }
     func close() { auth = .closed }
 }
@@ -191,5 +193,41 @@ final class SplitTests: XCTestCase {
         f.route = .account; f.sendAs = .video; f.partCount = 2; store.updateDetails(f)
         _ = await engine.run()
         XCTAssertEqual(store.file(id: f.id)?.state, .queued)
+    }
+}
+
+final class RestoreTests: XCTestCase {
+    func cap(_ name: String, _ takenAt: Int64, _ rule: String = "Camera Roll") -> String { Caption.build(displayName: name, takenAt: takenAt, ruleName: rule, sha256: "abcdef0123456789") }
+
+    func testKeyIgnoresRuleNameAndHash() {
+        let t: Int64 = 1_700_000_000_000
+        XCTAssertEqual(Caption.key(caption: cap("IMG_1.HEIC", t, "A")), Caption.key(caption: cap("IMG_1.HEIC", t, "B")))
+        XCTAssertEqual(Caption.key(caption: cap("IMG_1.HEIC", t)), Caption.key(displayName: "IMG_1.HEIC", takenAt: t))
+        XCTAssertNil(Caption.key(caption: "hello"))
+    }
+
+    func testRestoreReadsPagesAndScannerSkipsKnownFiles() async throws {
+        let store = try Store.inMemory(); let s = Settings(store); let g = FakeGateway(); g.auth = .ready(name: "T", phoneMasked: nil)
+        s.accountState = .ready
+        let auth = AccountAuth(gateway: g, settings: s, secrets: MemSecrets(), folders: { ("/tmp/db", "/tmp/files") }, settleMs: 100)
+        let t: Int64 = 1_700_000_000_000
+        g.pages = [TdHistory(captions: [cap("IMG_1.HEIC", t), "not ours"], oldestId: 900),
+                   TdHistory(captions: [cap("IMG_2.HEIC", t + 60_000)], oldestId: 500)]
+        let r = HistoryRestorer(store: store, gateway: g, auth: auth)
+        let n = await r.run(chatId: -100)
+        XCTAssertEqual(n, 2)
+        XCTAssertFalse(r.needed(chatId: -100))
+        XCTAssertTrue(store.isRestored(Caption.key(displayName: "IMG_1.HEIC", takenAt: t)))
+        XCTAssertFalse(store.isRestored(Caption.key(displayName: "IMG_3.HEIC", takenAt: t)))
+        let again = await r.run(chatId: -100); XCTAssertEqual(again, 0)   // done once, not repeated
+    }
+
+    func testFailedHistoryIsRetriedLater() async throws {
+        let store = try Store.inMemory(); let s = Settings(store); let g = FakeGateway(); g.auth = .ready(name: "T", phoneMasked: nil); s.accountState = .ready
+        let auth = AccountAuth(gateway: g, settings: s, secrets: MemSecrets(), folders: { ("/tmp/db", "/tmp/files") }, settleMs: 100)
+        g.pages = [TdHistory(captions: [], oldestId: nil, failed: true)]
+        let r = HistoryRestorer(store: store, gateway: g, auth: auth)
+        let n = await r.run(chatId: -100); XCTAssertNil(n)
+        XCTAssertTrue(r.needed(chatId: -100))
     }
 }

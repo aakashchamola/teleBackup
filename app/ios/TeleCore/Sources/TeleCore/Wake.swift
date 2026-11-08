@@ -8,6 +8,8 @@ public enum WakePlanner {
     public static func nextWake(store: Store, settings: Settings, now: Int64) -> Int64 {
         var times: [Int64] = [(settings.lastScanAt ?? now) + dailyMs]
         if let r = store.earliestRetryAt() { times.append(r) }
+        // files are waiting to go: ask for the next window soon (iOS still decides when, usually when idle and charging)
+        if store.queueCount(now: now, allowBot: true, allowAccount: true).count > 0 { times.append(now + 60_000) }
         if settings.controlState == .delayed, let d = settings.delayedUntil { times.append(d) }
         return max(now + 60_000, times.min() ?? now + dailyMs)
     }

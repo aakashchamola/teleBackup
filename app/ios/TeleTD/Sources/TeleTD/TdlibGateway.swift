@@ -290,4 +290,19 @@ public final class TdlibGateway: TdGateway {
         if r["@type"] as? String == "error" { return Self.code(r) == 404 || Self.msg(r).lowercased().contains("not found") ? .notFound : .unavailable }
         return Self.toSent(r).map { .found($0) } ?? .notFound
     }
+
+    // MARK: reading the group's history (to find what is already backed up)
+
+    public func history(chatId: Int64, fromTdlibId: Int64, limit: Int) async -> TdHistory {
+        guard let c = client, await knowChat(chatId) else { return TdHistory(captions: [], oldestId: nil, failed: true) }
+        let r = await td.request(c, ["@type": "getChatHistory", "chat_id": chatId, "from_message_id": fromTdlibId, "offset": 0, "limit": limit, "only_local": false])
+        if r["@type"] as? String == "error" { return TdHistory(captions: [], oldestId: nil, failed: true) }
+        let msgs = (r["messages"] as? [[String: Any]]) ?? []
+        var captions: [String] = []; var oldest: Int64?
+        for m in msgs {
+            if let id = (m["id"] as? NSNumber)?.int64Value { oldest = min(oldest ?? id, id) }
+            if let t = ((m["content"] as? [String: Any])?["caption"] as? [String: Any])?["text"] as? String, !t.isEmpty { captions.append(t) }
+        }
+        return TdHistory(captions: captions, oldestId: oldest)
+    }
 }
