@@ -163,6 +163,8 @@ final class FakeBackground: BackgroundUploading {
     var submitted: [(SendJob, Int64)] = [], active: Set<Int64> = [], refuse = false
     func submit(_ job: SendJob, fileId: Int64) -> String? { if refuse { return nil }; submitted.append((job, fileId)); return "/tmp/none-\(fileId)" }
     func activeFileIds() async -> Set<Int64> { active }
+    var cancelled = 0
+    func cancelAll() { cancelled += 1 }
 }
 
 final class BackgroundUploadTests: XCTestCase {
@@ -205,6 +207,7 @@ final class BackgroundUploadTests: XCTestCase {
         engine.completeBackground(fileId: id, httpCode: 200, data: reply(77), error: nil)
         let f = try XCTUnwrap(store.file(id: id))
         XCTAssertEqual(f.state, .verified); XCTAssertEqual(f.tgMessageId, 77)
+        XCTAssertEqual(settings.lastUploadAt, clock.now())   // shown on Home as "last upload"
         XCTAssertEqual(store.bgOutstanding().count, 0)
     }
 
@@ -245,5 +248,14 @@ final class BackgroundUploadTests: XCTestCase {
         source.items = [item("a", taken: 2 * Time.day)]; scanner.scan(rule); _ = await engine.run()
         let f = try XCTUnwrap(store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 5).first)
         XCTAssertEqual(f.state, .queued); XCTAssertEqual(store.bgOutstanding().count, 0)
+    }
+
+    func testPauseCancelsSystemUploadsAndRequeuesFiles() async throws {
+        source.items = [item("a", taken: 2 * Time.day), item("b", taken: 3 * Time.day)]; scanner.scan(rule); _ = await engine.run()
+        XCTAssertEqual(store.bgOutstanding().count, 2)
+        engine.cancelBackground()
+        XCTAssertEqual(bg.cancelled, 1); XCTAssertEqual(store.bgOutstanding().count, 0)
+        let states = store.page(ruleId: rule.id, state: nil, cursor: nil, limit: 10).map { $0.state }
+        XCTAssertEqual(states, [.queued, .queued])
     }
 }

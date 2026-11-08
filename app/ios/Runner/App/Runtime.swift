@@ -182,12 +182,12 @@ final class Runtime {
     // MARK: pause, delay, resume (buttons in the app and in notifications)
 
     @MainActor func pauseNow() {
-        control.pause(); delayTimer?.cancel(); tracker.pausing = tracker.running
+        control.pause(); engine.cancelBackground(); delayTimer?.cancel(); tracker.pausing = tracker.running
         if !tracker.running { Notifier.shared.showControlState() }
         BackgroundWork.schedule(); pushStatus()
     }
     @MainActor func delayNow(minutes: Int) {
-        control.delay(minutes: minutes); tracker.pausing = tracker.running
+        control.delay(minutes: minutes); engine.cancelBackground(); tracker.pausing = tracker.running
         if !tracker.running { Notifier.shared.showControlState() }
         armDelayTimer(); BackgroundWork.schedule(); pushStatus()
     }
@@ -220,7 +220,8 @@ final class Runtime {
     func backgroundFinished(fileId: Int64, code: Int, data: Data, error: Error?) {
         engine.completeBackground(fileId: fileId, httpCode: code, data: data, error: error)
         pushStatus()
-        DispatchQueue.main.async { [self] in startRun(scan: false) }   // hand the next files to the system
+        // hand the next files to the system; look for new photos too if the last scan is older than 5 minutes
+        DispatchQueue.main.async { [self] in startRun(scan: clock.now() - (settings.lastScanAt ?? 0) > 5 * Time.minute) }
     }
 
     var isRunning: Bool { runTask != nil }
@@ -240,15 +241,23 @@ final class Runtime {
 
     /// Feeds the Dynamic Island / lock-screen counter. Called after every status change, also while the app is only awake in the background.
     func updateLiveActivity() {
+        guard settings.setupDone else { return }
         let c = store.stateCounts()
         let doneStates: Set<TeleCore.FileState> = [.uploaded, .verified, .deleted]
         let totalStates: Set<TeleCore.FileState> = [.queued, .uploading, .failed, .uploaded, .verified, .deleted]
         let done = c.filter { doneStates.contains($0.state) }.reduce(0) { $0 + $1.count }
         let total = c.filter { totalStates.contains($0.state) }.reduce(0) { $0 + $1.count }
         let inSystem = store.bgOutstanding().count > 0
-        let busy = tracker.running || tracker.scanning || inSystem
-        let name = tracker.currentFileName ?? (inSystem ? "Sending in the background" : "Working")
-        LiveActivityController.shared.sync(done: done, total: total, current: name, busy: busy, waiting: !tracker.running && inSystem)
+        let status: String
+        if settings.controlState == .paused { status = "Paused" }
+        else if settings.controlState == .delayed { status = "Delayed" }
+        else if tracker.running, let n = tracker.currentFileName { status = n }
+        else if inSystem { status = "Sending in the background" }
+        else if !networkAllows { status = "Waiting for Wi-Fi" }
+        else if tracker.scanning { status = "Looking for new files" }
+        else { status = "Waiting for the next window" }
+        let waiting = !(tracker.running || inSystem)
+        Task { @MainActor in LiveActivityController.shared.sync(done: done, total: total, status: status, waiting: waiting, paused: settings.controlState == .paused) }
     }
 
     func permissionState() async -> (notifications: Bool, photos: Bool, backgroundRefresh: Bool) {

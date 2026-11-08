@@ -50,6 +50,10 @@ final class BackgroundUploader: NSObject, BackgroundUploading, URLSessionDataDel
         }
     }
 
+    func cancelAll() {
+        session.getAllTasks { tasks in tasks.forEach { $0.cancel() } }
+    }
+
     // MARK: session events (also delivered after the system relaunched the app in the background)
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {

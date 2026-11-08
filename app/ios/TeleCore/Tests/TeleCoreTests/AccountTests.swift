@@ -230,4 +230,18 @@ final class RestoreTests: XCTestCase {
         let n = await r.run(chatId: -100); XCTAssertNil(n)
         XCTAssertTrue(r.needed(chatId: -100))
     }
+
+    func testFilesQueuedBeforeTheRestoreAreAlsoSkipped() async throws {
+        let store = try Store.inMemory(); let s = Settings(store); let g = FakeGateway(); g.auth = .ready(name: "T", phoneMasked: nil); s.accountState = .ready
+        let auth = AccountAuth(gateway: g, settings: s, secrets: MemSecrets(), folders: { ("/tmp/db", "/tmp/files") }, settleMs: 100)
+        var rule = Rule(name: "Gallery", folderPath: "smart:recents"); rule.createdAt = 1; rule.updatedAt = 1
+        let rid = store.insert(rule: rule)
+        let t: Int64 = 1_700_000_000_000
+        func row(_ name: String) -> FileRecord { var f = FileRecord(ruleId: rid, path: "id-\(name)", displayName: name, mimeType: "image/jpeg", kind: .photo, sizeBytes: 10, modifiedAt: t, takenAt: t); f.createdAt = 1; f.updatedAt = 1; return f }
+        store.insertAll([row("IMG_1.HEIC"), row("IMG_2.HEIC")])
+        g.pages = [TdHistory(captions: [cap("IMG_1.HEIC", t)], oldestId: 5)]
+        _ = await HistoryRestorer(store: store, gateway: g, auth: auth).run(chatId: -100)
+        let states = Dictionary(uniqueKeysWithValues: store.byRuleAndStates(rid, [.queued, .ignored]).map { ($0.displayName, $0.state) })
+        XCTAssertEqual(states["IMG_1.HEIC"], .ignored); XCTAssertEqual(states["IMG_2.HEIC"], .queued)
+    }
 }

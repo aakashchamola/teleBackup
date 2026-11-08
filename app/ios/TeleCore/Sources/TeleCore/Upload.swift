@@ -31,6 +31,8 @@ public protocol BackgroundUploading: AnyObject {
     func submit(_ job: SendJob, fileId: Int64) -> String?
     /// File ids of uploads the system is still carrying out.
     func activeFileIds() async -> Set<Int64>
+    /// Stops every upload the system is carrying out (the engine puts those files back in the queue).
+    func cancelAll()
 }
 
 /// The few fields of a `SendJob` needed to check Telegram's reply after a background upload.
@@ -69,7 +71,7 @@ public final class UploadEngine {
     private var networkFails = 0
     /// Set to hand bot uploads to iOS's background session instead of waiting for each one.
     public var background: BackgroundUploading?
-    public var handoffMaxBytes: Int64 = 600_000_000, handoffMaxFiles = 150
+    public var handoffMaxBytes: Int64 = 300_000_000, handoffMaxFiles = 40   // smaller batches: more completions, so iOS wakes the app more often
     private var handoffFull = false
 
     public init(store: Store, settings: Settings, events: EventLog, clock: Clock, pacer: Pacer, exporter: AssetExporter,
@@ -222,6 +224,16 @@ public final class UploadEngine {
         complete(fileId, result, job: job, hash: rec.hash)
     }
 
+    /// Pause or delay: stop what the system is sending and queue those files again, so Pause really stops uploading.
+    public func cancelBackground() {
+        guard let bg = background else { return }
+        bg.cancelAll()
+        for j in store.bgJobs() {
+            if let f = store.file(id: j.fileId), f.state == .uploading { _ = try? store.apply(f.id, .recoverAfterCrash, now: clock.now()) }
+            store.removeBgJob(j.fileId); if !j.bodyPath.isEmpty { try? FileManager.default.removeItem(atPath: j.bodyPath) }
+        }
+    }
+
     /// A background upload the system no longer knows about (app reinstalled, task lost): put the file back in the queue.
     func reconcileBackground() async {
         guard let bg = background else { return }
@@ -288,6 +300,7 @@ public final class UploadEngine {
         switch result {
         case .sent(let msg):
             settings.botProblem = false
+            settings.lastUploadAt = clock.now()   // per file, so "last upload" is right while a run (or the system) is still sending
             guard let uploaded = try? store.apply(file.id, .sent(msg, sha256: hash), now: clock.now()) else { return .retry }
             events.add(.uploaded, "\(file.displayName) uploaded", ruleId: rule.id, fileId: file.id, bytes: file.sizeBytes)
             verify(uploaded, rule, job: job, sent: msg)

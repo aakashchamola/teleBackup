@@ -84,3 +84,9 @@ Newest at the end.
 - Background uploads: bot files go to iOS's background URLSession (`BackgroundUploader`, `UploadEngine.handOff` / `completeBackground`, table `bgjobs`, caps 600 MB / 150 files). The system keeps sending with the screen off and wakes the app when Telegram answers; the app then hands over the next files. Account (TDLib) files, 50 MB and over, still need the app to run.
 - Dynamic Island / lock screen counter "done / total": widget extension `TeleBackupWidgets` + `Shared/BackupActivity.swift` + `LiveActivityController`. Starts while the app is open, updates whenever the app is awake.
 - 53 core tests pass. Not yet proven on the phone with real photos: restore matching, background upload with the screen off, the Live Activity.
+
+## 2026-11-08 (later): Live Activity fixes, Pause/Resume buttons, restore of queued files
+- Live Activity: updates applied one at a time and never dropped; stays up while files are left (Wi-Fi wait, paused); stale marker after 10 minutes; Pause / Resume button on lock screen and expanded Dynamic Island (iOS 17+). Pause and Delay cancel uploads the system is carrying out and queue those files again.
+- Smaller background batches (40 files / 300 MB) so iOS wakes the app more often. "Last upload" is written per confirmed upload; background completions also scan when the last scan is older than 5 minutes.
+- Restore also marks files already queued before the history was read. Checked on the phone's database: 120 restored entries matched 120 verified files.
+- 55 core tests pass.

@@ -8,6 +8,15 @@ struct TeleBackupWidgets: WidgetBundle {
 }
 
 private func fraction(_ s: BackupAttributes.ContentState) -> Double { s.total > 0 ? min(1, Double(s.done) / Double(s.total)) : 0 }
+@ViewBuilder private func controlButton(_ s: BackupAttributes.ContentState) -> some View {
+    if #available(iOS 17.0, *) {
+        Button(intent: BackupControlIntent(pause: !s.paused)) {
+            Label(s.paused ? "Resume" : "Pause", systemImage: s.paused ? "play.fill" : "pause.fill").font(.subheadline.bold())
+        }
+        .buttonStyle(.bordered).tint(s.paused ? .green : .orange)
+    }
+}
+
 private func count(_ s: BackupAttributes.ContentState) -> String { "\(s.done) / \(s.total)" }
 
 struct BackupLiveActivity: Widget {
@@ -21,7 +30,8 @@ struct BackupLiveActivity: Widget {
                     Text(count(context.state)).font(.title3.monospacedDigit().bold())
                 }
                 ProgressView(value: fraction(context.state)).tint(.blue)
-                Text(context.state.current).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(context.isStale ? "Count updates when iOS wakes teleBackup. Open the app to refresh." : context.state.current).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                controlButton(context.state)
             }
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.35))
@@ -33,7 +43,8 @@ struct BackupLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 6) {
                         ProgressView(value: fraction(context.state)).tint(.blue)
-                        Text(context.state.current).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(context.isStale ? "Open the app to refresh the count" : context.state.current).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        controlButton(context.state)
                     }
                 }
             } compactLeading: {

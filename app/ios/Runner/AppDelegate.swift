@@ -13,6 +13,7 @@ import Photos
   ) -> Bool {
     BackgroundWork.register()   // must happen before the app finishes launching
     Notifier.shared.setup()
+    BackupControlHook.handler = { pause in if pause { Runtime.shared.pauseNow() } else { Runtime.shared.resumeNow() } }   // Pause / Resume in the Live Activity
     observeLifecycle()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
