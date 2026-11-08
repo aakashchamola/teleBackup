@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ActivityKit
 import UserNotifications
 import TeleCore
 
@@ -58,21 +59,16 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, ReviewNotifier
 
     // MARK: progress
 
-    /// "teleBackup · Backing up" with the file count, or the bytes of a big file; "Pausing..." while the current file finishes.
+    /// Nothing while the Dynamic Island / lock-screen counter is running, and never one per image.
+    /// Without a Live Activity (switched off in Settings) there is a single "Backing up" notification per run, with no per-file updates.
     func progress(_ t: RunTracker) {
-        guard UIApplication.shared.applicationState != .active, Date().timeIntervalSince(lastProgress) > 2 else { return }
-        guard t.running else { clearProgress(); return }
-        lastProgress = Date()
-        if t.pausing {
-            post(Self.progressId, title: "teleBackup · Pausing...", body: "Finishing \(t.currentFileName ?? "this file") first.", route: "home", passive: true); return
-        }
-        let name = t.currentFileName ?? "Starting..."
-        if let total = t.bytesTotal, let done = t.bytesDone, total >= 50_000_000 {
-            post(Self.progressId, title: "teleBackup · Backing up", body: "\(name) · \(Self.size(done)) of \(Self.size(total)) (\(Int(done * 100 / max(total, 1)))%)", category: "running", route: "home", passive: true)
-        } else {
-            post(Self.progressId, title: "teleBackup · Backing up", body: "\(t.filesDone + 1) of \(max(t.filesTotal, t.filesDone + 1)) · \(name)", category: "running", route: "home", passive: true)
-        }
+        guard t.running else { shownForRun = false; clearProgress(); return }
+        if !Activity<BackupAttributes>.activities.isEmpty { if shownForRun { clearProgress() }; shownForRun = false; return }
+        guard !shownForRun, UIApplication.shared.applicationState != .active else { return }
+        shownForRun = true
+        post(Self.progressId, title: "teleBackup · Backing up", body: "Your photos and videos are being sent to Telegram.", category: "running", route: "home", passive: true)
     }
+    private var shownForRun = false
 
     func clearProgress() { center.removeDeliveredNotifications(withIdentifiers: [Self.progressId]) }
 
