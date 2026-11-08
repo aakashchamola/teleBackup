@@ -90,3 +90,9 @@ Newest at the end.
 - Smaller background batches (40 files / 300 MB) so iOS wakes the app more often. "Last upload" is written per confirmed upload; background completions also scan when the last scan is older than 5 minutes.
 - Restore also marks files already queued before the history was read. Checked on the phone's database: 120 restored entries matched 120 verified files.
 - 55 core tests pass.
+
+## 2026-11-09: SideStore on iPhone 14/15 (iOS 17+) setup and pairing fixes
+- Proven setup for SideStore on modern iOS: resolves the pairing file format ambiguity by splitting composite iloader exports into pure `PairingFile_RemoteRP.plist` (`tools/fix_pairing_file.py`).
+- Fixes error `-80045` on iOS 17/18 by disabling broken On-Device Anisette and pointing to live remote server (`https://new.ani.sidestore.io`).
+- Added complete iPhone 14/15 walkthrough in `docs/IOS_SIDESTORE_IPHONE14.md`. Allows running teleBackup completely computer-free without needing a Mac or keeping Xcode installed.
+
